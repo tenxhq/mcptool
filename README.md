@@ -1,3 +1,5 @@
+**mcptool is under heavy development and not yet ready for use - check back later!**
+
 
 # mcptool
 
