@@ -1,0 +1,10 @@
+[package]
+name = "mcptool"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.40", features = ["derive"] }
+shell-words = "1.1"
+tenx-mcp = { path = "../tenx-mcp" }
+tokio = { version = "1", features = ["full"] }
