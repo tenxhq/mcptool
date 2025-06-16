@@ -25,6 +25,22 @@ impl Target {
             return Err("Empty host specification".to_string());
         }
 
+        // Handle port-only format (e.g., ":8080")
+        // But make sure it's not an IPv6 address starting with ::
+        if input.starts_with(':') && !input.starts_with("::") {
+            let port_str = &input[1..];
+            if port_str.is_empty() {
+                return Err("Empty port specification".to_string());
+            }
+            let port = port_str
+                .parse::<u16>()
+                .map_err(|_| format!("Invalid port: {}", port_str))?;
+            return Ok(Target::Tcp {
+                host: "0.0.0.0".to_string(),
+                port,
+            });
+        }
+
         // Handle IPv6 addresses in brackets
         if input.starts_with('[') {
             if let Some(end) = input.find(']') {
@@ -93,7 +109,12 @@ impl fmt::Display for Target {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Target::Tcp { host, port } => {
-                write!(f, "tcp://{}:{}", host, port)
+                // Check if host is an IPv6 address (contains colons but not already bracketed)
+                if host.contains(':') && !host.starts_with('[') {
+                    write!(f, "tcp://[{}]:{}", host, port)
+                } else {
+                    write!(f, "tcp://{}:{}", host, port)
+                }
             }
             Target::Stdio { command, args } => {
                 if args.is_empty() {
@@ -140,6 +161,23 @@ mod tests {
                     port: 3000,
                 }),
                 description: "localhost with port",
+            },
+            // Port-only format
+            TestCase {
+                input: ":8080",
+                expected: Ok(Target::Tcp {
+                    host: "0.0.0.0".to_string(),
+                    port: 8080,
+                }),
+                description: "port-only format",
+            },
+            TestCase {
+                input: "tcp://:3000",
+                expected: Ok(Target::Tcp {
+                    host: "0.0.0.0".to_string(),
+                    port: 3000,
+                }),
+                description: "explicit TCP with port-only",
             },
             // Explicit TCP
             TestCase {
@@ -318,7 +356,7 @@ mod tests {
                     host: "::1".to_string(),
                     port: 3000,
                 },
-                expected: "tcp://::1:3000",
+                expected: "tcp://[::1]:3000",
                 description: "IPv6 with port",
             },
             TestCase {
