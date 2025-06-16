@@ -129,12 +129,7 @@ async fn ping_once(
 
     let transport: Box<dyn Transport> = match target {
         Target::Tcp { host, port } => {
-            let addr = if let Some(p) = port {
-                format!("{}:{}", host, p)
-            } else {
-                // Use default MCP port if not specified
-                format!("{}:9000", host)
-            };
+            let addr = format!("{}:{}", host, port);
             Box::new(TcpTransport::new(addr))
         }
         Target::Stdio { command, args } => {

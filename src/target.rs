@@ -2,7 +2,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Target {
-    Tcp { host: String, port: Option<u16> },
+    Tcp { host: String, port: u16 },
     Stdio { command: String, args: Vec<String> },
 }
 
@@ -32,16 +32,13 @@ impl Target {
                 let remainder = &input[end + 1..];
 
                 if remainder.is_empty() {
-                    return Ok(Target::Tcp { host, port: None });
+                    return Err("Port is required for TCP targets".to_string());
                 } else if remainder.starts_with(':') {
                     let port_str = &remainder[1..];
                     let port = port_str
                         .parse::<u16>()
                         .map_err(|_| format!("Invalid port: {}", port_str))?;
-                    return Ok(Target::Tcp {
-                        host,
-                        port: Some(port),
-                    });
+                    return Ok(Target::Tcp { host, port });
                 } else {
                     return Err("Invalid character after IPv6 address".to_string());
                 }
@@ -58,26 +55,17 @@ impl Target {
             // Check if this might be part of an IPv6 address without brackets
             if host.contains(':') {
                 // This is likely an IPv6 address without brackets and no port
-                Ok(Target::Tcp {
-                    host: input.to_string(),
-                    port: None,
-                })
+                Err("Port is required for TCP targets".to_string())
             } else if port_str.is_empty() {
                 Err("Empty port specification".to_string())
             } else {
                 let port = port_str
                     .parse::<u16>()
                     .map_err(|_| format!("Invalid port: {}", port_str))?;
-                Ok(Target::Tcp {
-                    host,
-                    port: Some(port),
-                })
+                Ok(Target::Tcp { host, port })
             }
         } else {
-            Ok(Target::Tcp {
-                host: input.to_string(),
-                port: None,
-            })
+            Err("Port is required for TCP targets".to_string())
         }
     }
 
@@ -105,11 +93,7 @@ impl fmt::Display for Target {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Target::Tcp { host, port } => {
-                if let Some(p) = port {
-                    write!(f, "tcp://{}:{}", host, p)
-                } else {
-                    write!(f, "tcp://{}", host)
-                }
+                write!(f, "tcp://{}:{}", host, port)
             }
             Target::Stdio { command, args } => {
                 if args.is_empty() {
@@ -138,17 +122,14 @@ mod tests {
             // Implicit TCP
             TestCase {
                 input: "example.com",
-                expected: Ok(Target::Tcp {
-                    host: "example.com".to_string(),
-                    port: None,
-                }),
+                expected: Err("Port is required for TCP targets"),
                 description: "implicit TCP without port",
             },
             TestCase {
                 input: "example.com:8080",
                 expected: Ok(Target::Tcp {
                     host: "example.com".to_string(),
-                    port: Some(8080),
+                    port: 8080,
                 }),
                 description: "implicit TCP with port",
             },
@@ -156,41 +137,35 @@ mod tests {
                 input: "localhost:3000",
                 expected: Ok(Target::Tcp {
                     host: "localhost".to_string(),
-                    port: Some(3000),
+                    port: 3000,
                 }),
                 description: "localhost with port",
             },
             // Explicit TCP
             TestCase {
                 input: "tcp://example.com",
-                expected: Ok(Target::Tcp {
-                    host: "example.com".to_string(),
-                    port: None,
-                }),
+                expected: Err("Port is required for TCP targets"),
                 description: "explicit TCP without port",
             },
             TestCase {
                 input: "tcp://example.com:9999",
                 expected: Ok(Target::Tcp {
                     host: "example.com".to_string(),
-                    port: Some(9999),
+                    port: 9999,
                 }),
                 description: "explicit TCP with port",
             },
             // IPv6
             TestCase {
                 input: "[::1]",
-                expected: Ok(Target::Tcp {
-                    host: "::1".to_string(),
-                    port: None,
-                }),
+                expected: Err("Port is required for TCP targets"),
                 description: "IPv6 localhost without port",
             },
             TestCase {
                 input: "[::1]:8080",
                 expected: Ok(Target::Tcp {
                     host: "::1".to_string(),
-                    port: Some(8080),
+                    port: 8080,
                 }),
                 description: "IPv6 localhost with port",
             },
@@ -198,24 +173,18 @@ mod tests {
                 input: "tcp://[2001:db8::1]:443",
                 expected: Ok(Target::Tcp {
                     host: "2001:db8::1".to_string(),
-                    port: Some(443),
+                    port: 443,
                 }),
                 description: "explicit TCP with IPv6 and port",
             },
             TestCase {
                 input: "::1",
-                expected: Ok(Target::Tcp {
-                    host: "::1".to_string(),
-                    port: None,
-                }),
+                expected: Err("Port is required for TCP targets"),
                 description: "IPv6 without brackets (no port)",
             },
             TestCase {
                 input: "2001:db8::1",
-                expected: Ok(Target::Tcp {
-                    host: "2001:db8::1".to_string(),
-                    port: None,
-                }),
+                expected: Err("Port is required for TCP targets"),
                 description: "IPv6 address without brackets",
             },
             // Stdio
@@ -339,23 +308,15 @@ mod tests {
             TestCase {
                 target: Target::Tcp {
                     host: "example.com".to_string(),
-                    port: Some(8080),
+                    port: 8080,
                 },
                 expected: "tcp://example.com:8080",
                 description: "TCP with port",
             },
             TestCase {
                 target: Target::Tcp {
-                    host: "example.com".to_string(),
-                    port: None,
-                },
-                expected: "tcp://example.com",
-                description: "TCP without port",
-            },
-            TestCase {
-                target: Target::Tcp {
                     host: "::1".to_string(),
-                    port: Some(3000),
+                    port: 3000,
                 },
                 expected: "tcp://::1:3000",
                 description: "IPv6 with port",
