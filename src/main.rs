@@ -2,6 +2,7 @@ mod target;
 mod utils;
 
 use clap::{Args, Parser, Subcommand};
+use rustyline::DefaultEditor;
 use target::Target;
 use tenx_mcp::{
     Client,
@@ -51,6 +52,12 @@ enum Commands {
         #[command(flatten)]
         target_args: TargetArgs,
     },
+
+    /// Connect to an MCP server and start an interactive REPL
+    Connect {
+        #[command(flatten)]
+        target_args: TargetArgs,
+    },
 }
 
 #[tokio::main]
@@ -74,6 +81,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Listtools { target_args } => {
             let target = Target::parse(&target_args.target)?;
             listtools_command(target).await?;
+        }
+
+        Commands::Connect { target_args } => {
+            let target = Target::parse(&target_args.target)?;
+            connect_command(target).await?;
         }
     }
 
@@ -133,6 +145,11 @@ async fn connect_to_server(
     Ok((client, init_result))
 }
 
+async fn execute_ping(client: &mut Client) -> Result<(), Box<dyn std::error::Error>> {
+    client.ping().timed("Pinged").await?;
+    Ok(())
+}
+
 async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, init_result) = connect_to_server(target)
         .timed("Connected and initialized")
@@ -143,23 +160,14 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
         init_result.server_info.name, init_result.server_info.version
     );
 
-    client.ping().timed("Pinged").await?;
+    execute_ping(&mut client).await?;
 
     Ok(())
 }
 
-async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Listing tools from {}...", target);
-
-    let (mut client, init_result) = connect_to_server(&target).await?;
-
-    println!(
-        "Connected to: {} v{}\n",
-        init_result.server_info.name, init_result.server_info.version
-    );
-
-    let tools_result = client.list_tools().timed("Tools retrieved").await?;
-
+fn display_tools(
+    tools_result: &tenx_mcp::schema::ListToolsResult,
+) -> Result<(), Box<dyn std::error::Error>> {
     if tools_result.tools.is_empty() {
         println!("No tools available from this server.");
     } else {
@@ -210,6 +218,96 @@ async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Err
             }
 
             println!(); // Extra blank line between tools
+        }
+    }
+    Ok(())
+}
+
+async fn execute_listtools(client: &mut Client) -> Result<(), Box<dyn std::error::Error>> {
+    let tools_result = client.list_tools().timed("Tools retrieved").await?;
+    display_tools(&tools_result)?;
+    Ok(())
+}
+
+async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Listing tools from {}...", target);
+
+    let (mut client, init_result) = connect_to_server(&target).await?;
+
+    println!(
+        "Connected to: {} v{}\n",
+        init_result.server_info.name, init_result.server_info.version
+    );
+
+    execute_listtools(&mut client).await?;
+
+    Ok(())
+}
+
+async fn connect_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to {}...", target);
+
+    let (mut client, init_result) = connect_to_server(&target).await?;
+
+    println!(
+        "Connected to: {} v{}",
+        init_result.server_info.name, init_result.server_info.version
+    );
+    println!("Type 'help' for available commands, 'quit' to exit\n");
+
+    let mut rl = DefaultEditor::new()?;
+
+    loop {
+        let readline = rl.readline("mcp> ");
+        match readline {
+            Ok(line) => {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+
+                rl.add_history_entry(line)?;
+
+                match line {
+                    "quit" | "exit" => {
+                        println!("Goodbye!");
+                        break;
+                    }
+                    "help" => {
+                        println!("Available commands:");
+                        println!("  ping      - Send a ping request to the server");
+                        println!("  listtools - List all available tools from the server");
+                        println!("  help      - Show this help message");
+                        println!("  quit/exit - Exit the REPL");
+                    }
+                    "ping" => match execute_ping(&mut client).await {
+                        Ok(_) => println!("Ping successful!"),
+                        Err(e) => println!("Ping failed: {}", e),
+                    },
+                    "listtools" => match execute_listtools(&mut client).await {
+                        Ok(_) => {}
+                        Err(e) => println!("Failed to list tools: {}", e),
+                    },
+                    _ => {
+                        println!(
+                            "Unknown command: {}. Type 'help' for available commands.",
+                            line
+                        );
+                    }
+                }
+            }
+            Err(rustyline::error::ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            }
+            Err(rustyline::error::ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
         }
     }
 

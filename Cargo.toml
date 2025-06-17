@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.40", features = ["derive"] }
 shell-words = "1.1"
+rustyline = "16.0"
 # tenx-mcp = { path = "../tenx-mcp" }
 tenx-mcp = { git = "https://github.com/tenxhq/tenx-mcp.git", rev = "aa9030a"}
 tokio = { version = "1", features = ["full"] }
