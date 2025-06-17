@@ -28,7 +28,7 @@ struct TargetArgs {
 #[command(
     name = "mcptool",
     about = "A versatile command-line utility for connecting to, testing, and probing MCP servers",
-    version
+    version = VERSION,
 )]
 struct Cli {
     #[command(subcommand)]
