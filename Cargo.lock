@@ -620,7 +620,7 @@ dependencies = [
 [[package]]
 name = "tenx-mcp"
 version = "0.1.0"
-source = "git+https://github.com/tenxhq/tenx-mcp.git?rev=158a764#158a764b12803be4d773822063268cc20ec5dfc1"
+source = "git+https://github.com/tenxhq/tenx-mcp.git?rev=b7d7a3b#b7d7a3b62626db99b80a7d2fa95aac7a7a8666ae"
 dependencies = [
  "async-trait",
  "bytes",

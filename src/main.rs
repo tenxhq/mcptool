@@ -1,63 +1,13 @@
 mod target;
 
 use clap::{Parser, Subcommand};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use target::Target;
 use tenx_mcp::{
-    client::Client,
+    Client,
     schema::{ClientCapabilities, Implementation},
-    transport::{StreamTransport, Transport},
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// A duplex stream wrapper around child process stdin/stdout
-pub struct ChildProcessDuplex {
-    stdin: tokio::process::ChildStdin,
-    stdout: tokio::process::ChildStdout,
-}
-
-impl ChildProcessDuplex {
-    pub fn new(stdin: tokio::process::ChildStdin, stdout: tokio::process::ChildStdout) -> Self {
-        Self { stdin, stdout }
-    }
-}
-
-impl AsyncRead for ChildProcessDuplex {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.stdout).poll_read(cx, buf)
-    }
-}
-
-impl AsyncWrite for ChildProcessDuplex {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.stdin).poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.stdin).poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.stdin).poll_shutdown(cx)
-    }
-}
 
 #[derive(Parser)]
 #[command(
@@ -123,14 +73,18 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Instant;
 
     let start_time = Instant::now();
+    let mut client = Client::new();
 
-    let transport: Box<dyn Transport> = match target {
+    // Track connection and initialization time
+    let connect_start = Instant::now();
+
+    let init_result = match target {
         Target::Tcp { host, port } => {
             let addr = format!("{}:{}", host, port);
-            let stream = tokio::net::TcpStream::connect(&addr)
+            client
+                .connect_tcp(&addr, "mcptool", VERSION)
                 .await
-                .map_err(|e| format!("Failed to connect to TCP address {}: {}", addr, e))?;
-            Box::new(StreamTransport::new(stream))
+                .map_err(|e| format!("Failed to connect to TCP address {}: {}", addr, e))?
         }
         Target::Stdio { command, args } => {
             println!(
@@ -141,65 +95,32 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
 
             let mut cmd = tokio::process::Command::new(command);
             cmd.args(args);
-            cmd.stdin(std::process::Stdio::piped());
-            cmd.stdout(std::process::Stdio::piped());
-            cmd.stderr(std::process::Stdio::piped());
 
-            let mut child = cmd
-                .spawn()
+            let _child = client
+                .connect_process(cmd)
+                .await
                 .map_err(|e| format!("Failed to spawn MCP server process: {}", e))?;
 
-            // Extract stdin and stdout from the child process
-            let stdin = child
-                .stdin
-                .take()
-                .ok_or("Failed to get stdin from child process")?;
-            let stdout = child
-                .stdout
-                .take()
-                .ok_or("Failed to get stdout from child process")?;
+            // Initialize the connection
+            let client_info = Implementation {
+                name: "mcptool".to_string(),
+                version: VERSION.to_string(),
+            };
 
-            // Create a duplex stream from the child process streams
-            let duplex = ChildProcessDuplex::new(stdin, stdout);
+            let capabilities = ClientCapabilities::default();
 
-            // Use StreamTransport to wrap the duplex stream
-            Box::new(StreamTransport::new(duplex))
+            client
+                .initialize(client_info, capabilities)
+                .await
+                .map_err(|e| format!("Failed to initialize MCP client: {}", e))?
         }
     };
 
-    let mut client = Client::new();
-
-    // Track connection time
-    let connect_start = Instant::now();
-    client
-        .connect(transport)
-        .await
-        .map_err(|e| format!("Failed to connect to MCP server: {}", e))?;
     let connect_duration = connect_start.elapsed();
 
     println!(
-        "Connected in {:.2}ms",
+        "Connected and initialized in {:.2}ms",
         connect_duration.as_secs_f64() * 1000.0
-    );
-
-    // Initialize the connection
-    let client_info = Implementation {
-        name: "mcptool".to_string(),
-        version: VERSION.to_string(),
-    };
-
-    let capabilities = ClientCapabilities::default();
-
-    let init_start = Instant::now();
-    let init_result = client
-        .initialize(client_info, capabilities)
-        .await
-        .map_err(|e| format!("Failed to initialize MCP client: {}", e))?;
-    let init_duration = init_start.elapsed();
-
-    println!(
-        "Initialized in {:.2}ms",
-        init_duration.as_secs_f64() * 1000.0
     );
     println!(
         "Server info: {} v{}",
