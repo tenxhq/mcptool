@@ -1,7 +1,7 @@
 mod target;
 mod utils;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use target::Target;
 use tenx_mcp::{
     Client,
@@ -17,6 +17,12 @@ pub const VERSION: &str = concat!(
     env!("VERGEN_BUILD_DATE"),
     ")"
 );
+
+#[derive(Args)]
+struct TargetArgs {
+    /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
+    target: String,
+}
 
 #[derive(Parser)]
 #[command(
@@ -36,14 +42,14 @@ enum Commands {
 
     /// Send a ping request to an MCP server
     Ping {
-        /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
-        target: String,
+        #[command(flatten)]
+        target_args: TargetArgs,
     },
 
     /// List all MCP tools from a server
     Listtools {
-        /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
-        target: String,
+        #[command(flatten)]
+        target_args: TargetArgs,
     },
 }
 
@@ -60,13 +66,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        Commands::Ping { target } => {
-            let target = Target::parse(&target)?;
+        Commands::Ping { target_args } => {
+            let target = Target::parse(&target_args.target)?;
             ping_command(target).await?;
         }
 
-        Commands::Listtools { target } => {
-            let target = Target::parse(&target)?;
+        Commands::Listtools { target_args } => {
+            let target = Target::parse(&target_args.target)?;
             listtools_command(target).await?;
         }
     }
