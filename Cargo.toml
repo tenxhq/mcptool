@@ -9,6 +9,7 @@ shell-words = "1.1"
 # tenx-mcp = { path = "../tenx-mcp" }
 tenx-mcp = { git = "https://github.com/tenxhq/tenx-mcp.git", rev = "aa9030a"}
 tokio = { version = "1", features = ["full"] }
+serde_json = "1.0.140"
 
 [build-dependencies]
 anyhow = "1.0.98"

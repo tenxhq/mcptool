@@ -37,6 +37,12 @@ enum Commands {
         /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
         target: String,
     },
+
+    /// List all MCP tools from a server
+    Listtools {
+        /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
+        target: String,
+    },
 }
 
 #[tokio::main]
@@ -55,6 +61,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Ping { target } => {
             let target = Target::parse(&target)?;
             ping_command(target).await?;
+        }
+
+        Commands::Listtools { target } => {
+            let target = Target::parse(&target)?;
+            listtools_command(target).await?;
         }
     }
 
@@ -76,14 +87,10 @@ async fn ping_command(target: Target) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
-    use std::time::Instant;
-
-    let start_time = Instant::now();
+async fn connect_to_server(
+    target: &Target,
+) -> Result<(Client, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>> {
     let mut client = Client::new();
-
-    // Track connection and initialization time
-    let connect_start = Instant::now();
 
     let init_result = match target {
         Target::Tcp { host, port } => {
@@ -108,7 +115,6 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .map_err(|e| format!("Failed to spawn MCP server process: {}", e))?;
 
-            // Initialize the connection
             let client_info = Implementation {
                 name: "mcptool".to_string(),
                 version: VERSION.to_string(),
@@ -123,6 +129,16 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    Ok((client, init_result))
+}
+
+async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
+    use std::time::Instant;
+
+    let start_time = Instant::now();
+    let connect_start = Instant::now();
+
+    let (mut client, init_result) = connect_to_server(target).await?;
     let connect_duration = connect_start.elapsed();
 
     println!(
@@ -134,7 +150,6 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
         init_result.server_info.name, init_result.server_info.version
     );
 
-    // Send the actual ping request with timing
     let ping_start = Instant::now();
     client
         .ping()
@@ -149,6 +164,77 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
         ping_duration.as_secs_f64() * 1000.0
     );
     println!("Total time: {:.2}ms", total_duration.as_secs_f64() * 1000.0);
+
+    Ok(())
+}
+
+async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Listing tools from {}...", target);
+
+    let (mut client, init_result) = connect_to_server(&target).await?;
+
+    println!(
+        "Connected to: {} v{}\n",
+        init_result.server_info.name, init_result.server_info.version
+    );
+
+    let tools_result = client
+        .list_tools()
+        .await
+        .map_err(|e| format!("Failed to list tools: {}", e))?;
+
+    if tools_result.tools.is_empty() {
+        println!("No tools available from this server.");
+    } else {
+        println!("Available tools ({}):\n", tools_result.tools.len());
+        for tool in &tools_result.tools {
+            println!("  - {}", tool.name);
+
+            println!("\n    Description:\n");
+            match &tool.description {
+                Some(description) => {
+                    for line in description.lines() {
+                        println!("      {}", line);
+                    }
+                }
+                None => println!("      No description available"),
+            }
+
+            println!("\n    Annotations:\n");
+            match &tool.annotations {
+                Some(annotations) => {
+                    println!("      {:?}", annotations.title);
+                }
+                None => println!("      No annotations available"),
+            }
+
+            println!("\n    Input arguments:\n");
+
+            // TODO Show required inputs first?
+            match &tool.input_schema.properties {
+                Some(properties) => {
+                    for (name, schema) in properties {
+                        let rendered_schema = serde_json::to_string_pretty(schema)
+                            .map_err(|e| format!("Failed to serialize schema: {}", e))?;
+                        let is_required = &tool
+                            .clone()
+                            .input_schema
+                            .required
+                            .is_some_and(|list| list.contains(name));
+                        println!("      {} - (required: {})\n", name, is_required);
+
+                        for line in rendered_schema.lines() {
+                            println!("        {}", line);
+                        }
+                        println!();
+                    }
+                }
+                None => println!("      No input schema available"),
+            }
+
+            println!(); // Extra blank line between tools
+        }
+    }
 
     Ok(())
 }
