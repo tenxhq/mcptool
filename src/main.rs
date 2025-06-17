@@ -7,7 +7,14 @@ use tenx_mcp::{
     schema::{ClientCapabilities, Implementation},
 };
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "-",
+    env!("VERGEN_GIT_SHA"),
+    " (",
+    env!("VERGEN_BUILD_DATE"),
+    ")"
+);
 
 #[derive(Parser)]
 #[command(
