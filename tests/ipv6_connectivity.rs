@@ -1,6 +1,6 @@
 use mcptool::target::Target;
-use tokio::net::TcpListener;
 use tokio::io::AsyncWriteExt;
+use tokio::net::TcpListener;
 
 #[tokio::test]
 async fn test_ipv6_parsing_and_display() {
@@ -17,7 +17,7 @@ async fn test_ipv6_parsing_and_display() {
             Target::Tcp { ref host, port } => {
                 assert_eq!(host, expected_host);
                 assert_eq!(port, expected_port);
-                
+
                 // Test display format includes brackets
                 let display = target.to_string();
                 assert!(display.contains(&format!("[{}]", expected_host)));
@@ -51,9 +51,12 @@ async fn test_ipv6_connectivity() {
     // Test that we can parse and format IPv6 addresses correctly
     let target_str = format!("[::1]:{}", port);
     let target = Target::parse(&target_str).expect("Should parse IPv6 target");
-    
+
     match target {
-        Target::Tcp { ref host, port: parsed_port } => {
+        Target::Tcp {
+            ref host,
+            port: parsed_port,
+        } => {
             assert_eq!(host, "::1");
             assert_eq!(parsed_port, port);
         }
@@ -113,13 +116,17 @@ fn test_ipv6_parsing_edge_cases() {
 
     // Test invalid cases
     let invalid_cases = vec![
-        "[::1]",          // No port
-        "[::1]::",        // Invalid port
-        "[::1",           // Unclosed bracket
-        "::1:80",         // IPv6 without brackets should fail with port required error
+        "[::1]",   // No port
+        "[::1]::", // Invalid port
+        "[::1",    // Unclosed bracket
+        "::1:80",  // IPv6 without brackets should fail with port required error
     ];
 
     for input in invalid_cases {
-        assert!(Target::parse(input).is_err(), "Should fail to parse: {}", input);
+        assert!(
+            Target::parse(input).is_err(),
+            "Should fail to parse: {}",
+            input
+        );
     }
 }
