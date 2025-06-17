@@ -1,4 +1,5 @@
 mod target;
+mod utils;
 
 use clap::{Parser, Subcommand};
 use target::Target;
@@ -6,6 +7,7 @@ use tenx_mcp::{
     Client,
     schema::{ClientCapabilities, Implementation},
 };
+use utils::TimedFuture;
 
 pub const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -75,14 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn ping_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
     println!("Pinging {}...", target);
 
-    match ping_once(&target).await {
-        Ok(()) => {
-            println!("Ping successful");
-        }
-        Err(e) => {
-            println!("Ping failed: {}", e);
-        }
-    }
+    ping_once(&target).await?;
 
     Ok(())
 }
@@ -133,37 +128,16 @@ async fn connect_to_server(
 }
 
 async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
-    use std::time::Instant;
+    let (mut client, init_result) = connect_to_server(target)
+        .timed("Connected and initialized")
+        .await?;
 
-    let start_time = Instant::now();
-    let connect_start = Instant::now();
-
-    let (mut client, init_result) = connect_to_server(target).await?;
-    let connect_duration = connect_start.elapsed();
-
-    println!(
-        "Connected and initialized in {:.2}ms",
-        connect_duration.as_secs_f64() * 1000.0
-    );
     println!(
         "Server info: {} v{}",
         init_result.server_info.name, init_result.server_info.version
     );
 
-    let ping_start = Instant::now();
-    client
-        .ping()
-        .await
-        .map_err(|e| format!("Ping request failed: {}", e))?;
-    let ping_duration = ping_start.elapsed();
-
-    let total_duration = start_time.elapsed();
-
-    println!(
-        "Ping successful in {:.2}ms",
-        ping_duration.as_secs_f64() * 1000.0
-    );
-    println!("Total time: {:.2}ms", total_duration.as_secs_f64() * 1000.0);
+    let _ = client.ping().timed("Pinged").await?;
 
     Ok(())
 }
@@ -178,10 +152,7 @@ async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Err
         init_result.server_info.name, init_result.server_info.version
     );
 
-    let tools_result = client
-        .list_tools()
-        .await
-        .map_err(|e| format!("Failed to list tools: {}", e))?;
+    let tools_result = client.list_tools().timed("Tools retrieved").await?;
 
     if tools_result.tools.is_empty() {
         println!("No tools available from this server.");
