@@ -1,0 +1,181 @@
+use crate::Target;
+use chrono::Utc;
+use std::path::PathBuf;
+use tokio::fs::OpenOptions;
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio::process::Command;
+
+async fn log_traffic(
+    log_writer: &mut tokio::fs::File,
+    direction: &str,
+    data: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let timestamp = Utc::now().to_rfc3339();
+    log_writer
+        .write_all(format!("{}\n{}:\n", timestamp, direction).as_bytes())
+        .await?;
+    log_writer.write_all(data).await?;
+    log_writer.write_all(b"\n").await?;
+    log_writer.flush().await?;
+    Ok(())
+}
+
+async fn handle_client_to_server<W>(
+    data: &[u8],
+    target: &mut W,
+    log_writer: &mut tokio::fs::File,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    W: AsyncWriteExt + Unpin,
+{
+    target.write_all(data).await?;
+    target.flush().await?;
+    log_traffic(log_writer, "CLIENT->SERVER", data).await?;
+    Ok(())
+}
+
+async fn handle_server_to_client<W>(
+    data: &[u8],
+    writer: &mut W,
+    log_writer: &mut tokio::fs::File,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    W: AsyncWriteExt + Unpin,
+{
+    writer.write_all(data).await?;
+    writer.flush().await?;
+    log_traffic(log_writer, "SERVER->CLIENT", data).await?;
+    Ok(())
+}
+
+pub async fn proxy_command(
+    target: Target,
+    log_file: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut log_writer = Some(
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_file)
+            .await?,
+    );
+
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+
+    match target {
+        Target::Tcp { host, port } => {
+            let addr = format!("{}:{}", host, port);
+            let target_stream = TcpStream::connect(&addr).await?;
+            proxy_streams(stdin, stdout, target_stream, log_writer.as_mut().unwrap()).await?;
+        }
+        Target::Stdio { command, args } => {
+            let mut cmd = Command::new(command);
+            cmd.args(args);
+            cmd.stdin(std::process::Stdio::piped());
+            cmd.stdout(std::process::Stdio::piped());
+
+            let mut child = cmd.spawn()?;
+            let child_stdin = child.stdin.take().unwrap();
+            let child_stdout = child.stdout.take().unwrap();
+
+            proxy_process_streams(
+                stdin,
+                stdout,
+                child_stdin,
+                child_stdout,
+                log_writer.as_mut().unwrap(),
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn proxy_streams<R, W, T>(
+    mut reader: R,
+    mut writer: W,
+    mut target: T,
+    log_writer: &mut tokio::fs::File,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    R: AsyncReadExt + Unpin,
+    W: AsyncWriteExt + Unpin,
+    T: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    let mut buf1 = [0u8; 8192];
+    let mut buf2 = [0u8; 8192];
+
+    loop {
+        tokio::select! {
+            result = reader.read(&mut buf1) => {
+                match result {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let data = &buf1[..n];
+                        handle_client_to_server(data, &mut target, log_writer).await?;
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            result = target.read(&mut buf2) => {
+                match result {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let data = &buf2[..n];
+                        handle_server_to_client(data, &mut writer, log_writer).await?;
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn proxy_process_streams<R, W, S, T>(
+    mut reader: R,
+    mut writer: W,
+    mut target_stdin: S,
+    mut target_stdout: T,
+    log_writer: &mut tokio::fs::File,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    R: AsyncReadExt + Unpin,
+    W: AsyncWriteExt + Unpin,
+    S: AsyncWriteExt + Unpin,
+    T: AsyncReadExt + Unpin,
+{
+    let mut buf1 = [0u8; 8192];
+    let mut buf2 = [0u8; 8192];
+
+    loop {
+        tokio::select! {
+            result = reader.read(&mut buf1) => {
+                match result {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let data = &buf1[..n];
+                        handle_client_to_server(data, &mut target_stdin, log_writer).await?;
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            result = target_stdout.read(&mut buf2) => {
+                match result {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let data = &buf2[..n];
+                        handle_server_to_client(data, &mut writer, log_writer).await?;
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            }
+        }
+    }
+
+    Ok(())
+}

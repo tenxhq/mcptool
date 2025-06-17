@@ -56,8 +56,10 @@ a local command to be spawned in **stdio** mode.
 | Command                                      | Purpose                                                                                                                                                                                                                 |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mcptool connect <target> [--script <file>]` | Connect to the target. Without **`--script`** you drop into an interactive prompt (`>`). With **`--script`** mcptool reads one sub‑command per line from *file*, executes them sequentially, prints results, and exits. |
+| `mcptool proxy <target> --log-file <file>`   | Transparently open a stdio transport, and proxy all traffic to target, recording it to *file*.                                                                                                                    |
 | `mcptool version`                            | Display the mcptool build version & linked MCP revision.                                                                                                                                                                |
 | `mcptool help [sub-command]`                 | Show contextual help for any command.                                                                                                                                                                                   |
+
 
 ### MCP Commands (usable inside the prompt *or* from the shell with a `<target>`)
 

@@ -1,3 +1,4 @@
+mod proxy;
 mod target;
 mod utils;
 
@@ -23,6 +24,16 @@ pub const VERSION: &str = concat!(
 struct TargetArgs {
     /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
     target: String,
+}
+
+#[derive(Args)]
+struct ProxyArgs {
+    /// The MCP server target to proxy to (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
+    target: String,
+
+    /// File path to log all proxy traffic
+    #[arg(long)]
+    log_file: std::path::PathBuf,
 }
 
 #[derive(Parser)]
@@ -58,6 +69,12 @@ enum Commands {
         #[command(flatten)]
         target_args: TargetArgs,
     },
+
+    /// Transparently proxy and print traffic forwarded to the target
+    Proxy {
+        #[command(flatten)]
+        proxy_args: ProxyArgs,
+    },
 }
 
 #[tokio::main]
@@ -86,6 +103,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Connect { target_args } => {
             let target = Target::parse(&target_args.target)?;
             connect_command(target).await?;
+        }
+
+        Commands::Proxy { proxy_args } => {
+            let target = Target::parse(&proxy_args.target)?;
+            proxy::proxy_command(target, proxy_args.log_file).await?;
         }
     }
 
