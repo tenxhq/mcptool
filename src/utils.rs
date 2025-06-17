@@ -1,8 +1,11 @@
+use async_trait::async_trait;
+use std::fmt::Display;
 use std::future::Future;
 use std::time::Instant;
 
+#[async_trait]
 pub trait TimedFuture: Future + Sized {
-    async fn timed<S: AsRef<str> + std::fmt::Display>(self, title: S) -> Self::Output {
+    async fn timed<S: AsRef<str> + Display + Send>(self, title: S) -> Self::Output {
         let start = Instant::now();
         let output = self.await;
 

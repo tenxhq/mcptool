@@ -137,7 +137,7 @@ async fn ping_once(target: &Target) -> Result<(), Box<dyn std::error::Error>> {
         init_result.server_info.name, init_result.server_info.version
     );
 
-    let _ = client.ping().timed("Pinged").await?;
+    client.ping().timed("Pinged").await?;
 
     Ok(())
 }

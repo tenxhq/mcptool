@@ -1708,6 +1708,7 @@ name = "mcptool"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "serde_json",
  "shell-words",
