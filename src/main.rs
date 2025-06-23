@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand};
 use rustyline::DefaultEditor;
 use target::Target;
 use tenx_mcp::{
-    Client,
-    schema::{ClientCapabilities, Implementation},
+    Client, ServerAPI,
+    schema::{ClientCapabilities, InitializeResult},
 };
 use utils::TimedFuture;
 
@@ -124,14 +124,15 @@ async fn ping_command(target: Target) -> Result<(), Box<dyn std::error::Error>> 
 
 async fn connect_to_server(
     target: &Target,
-) -> Result<(Client, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>> {
-    let mut client = Client::new();
+) -> Result<(Client<()>, InitializeResult), Box<dyn std::error::Error>> {
+    let mut client = Client::new("mcptool", VERSION)
+        .with_capabilities(ClientCapabilities::default());
 
     let init_result = match target {
         Target::Tcp { host, port } => {
             let addr = format!("{}:{}", host, port);
             client
-                .connect_tcp(&addr, "mcptool", VERSION)
+                .connect_tcp(&addr)
                 .await
                 .map_err(|e| format!("Failed to connect to TCP address {}: {}", addr, e))?
         }
@@ -150,15 +151,9 @@ async fn connect_to_server(
                 .await
                 .map_err(|e| format!("Failed to spawn MCP server process: {}", e))?;
 
-            let client_info = Implementation {
-                name: "mcptool".to_string(),
-                version: VERSION.to_string(),
-            };
-
-            let capabilities = ClientCapabilities::default();
-
+            // The new API handles initialization automatically
             client
-                .initialize(client_info, capabilities)
+                .init()
                 .await
                 .map_err(|e| format!("Failed to initialize MCP client: {}", e))?
         }
@@ -167,7 +162,7 @@ async fn connect_to_server(
     Ok((client, init_result))
 }
 
-async fn execute_ping(client: &mut Client) -> Result<(), Box<dyn std::error::Error>> {
+async fn execute_ping(client: &mut Client<()>) -> Result<(), Box<dyn std::error::Error>> {
     client.ping().timed("Pinged").await?;
     Ok(())
 }
@@ -245,8 +240,8 @@ fn display_tools(
     Ok(())
 }
 
-async fn execute_listtools(client: &mut Client) -> Result<(), Box<dyn std::error::Error>> {
-    let tools_result = client.list_tools().timed("Tools retrieved").await?;
+async fn execute_listtools(client: &mut Client<()>) -> Result<(), Box<dyn std::error::Error>> {
+    let tools_result = client.list_tools(None).timed("Tools retrieved").await?;
     display_tools(&tools_result)?;
     Ok(())
 }
