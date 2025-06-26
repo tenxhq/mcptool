@@ -36,19 +36,23 @@ After installation the binary is available as `mcptool`. Use `--help` on any sub
 
 ### Target Specification
 
-Every sub‑command that expects a *target* accepts **either** a TCP endpoint or
-a local command to be spawned in **stdio** mode.
+Every sub‑command that expects a *target* accepts a TCP endpoint, HTTP/HTTPS endpoint,
+or a local command to be spawned in **stdio** mode.
 
 | Variant                      | Syntax                    | What Happens                                                                                                        |
 | ---------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Implicit TCP** *(default)* | `host[:port]`             | Connects via TCP. If no port is given, the command‑specific default applies.                                        |
 | **Explicit TCP**             | `tcp://host[:port]`       | Same as above but unambiguous when the host could contain a scheme prefix.                                          |
+| **HTTP**                     | `http://host[:port]`      | Connects via HTTP. If no port is given, defaults to port 80.                                                       |
+| **HTTPS**                    | `https://host[:port]`     | Connects via HTTPS. If no port is given, defaults to port 443.                                                     |
 | **Stdio Command**            | `cmd://<program> [args…]` | Spawns the program locally and speaks MCP over its STDIN/STDOUT pipes. Use quotes when the command contains spaces. |
 
 > **Example targets**
 >
 > * `api.acme.ai` (TCP, default port)
 > * `tcp://api.acme.ai:7780` (TCP, port 7780)
+> * `http://api.acme.ai` (HTTP, port 80)
+> * `https://api.acme.ai:8443` (HTTPS, port 8443)
 > * `"cmd://./my‑stdio‑server --some --argument"` (local process)
 
 ### Global Commands (run from your shell)

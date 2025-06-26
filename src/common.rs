@@ -40,8 +40,19 @@ pub async fn connect_to_server(
                 .await
                 .map_err(|e| format!("Failed to initialize MCP client: {e}"))?
         }
-        Target::Http { .. } | Target::Https { .. } => {
-            return Err("HTTP/HTTPS connections are not yet supported".into());
+        Target::Http { host, port } => {
+            let url = format!("http://{host}:{port}");
+            client
+                .connect_http(&url)
+                .await
+                .map_err(|e| format!("Failed to connect to HTTP endpoint {url}: {e}"))?
+        }
+        Target::Https { host, port } => {
+            let url = format!("https://{host}:{port}");
+            client
+                .connect_http(&url)
+                .await
+                .map_err(|e| format!("Failed to connect to HTTPS endpoint {url}: {e}"))?
         }
     };
 

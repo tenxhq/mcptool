@@ -21,13 +21,13 @@ pub const VERSION: &str = concat!(
 
 #[derive(Args)]
 struct TargetArgs {
-    /// The MCP server target (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
+    /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "https://host:port", "cmd://./server")
     target: String,
 }
 
 #[derive(Args)]
 struct ProxyArgs {
-    /// The MCP server target to proxy to (e.g., "api.example.com", "tcp://host:port", "cmd://./server")
+    /// The MCP server target to proxy to (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "https://host:port", "cmd://./server")
     target: String,
 
     /// File path to log all proxy traffic
