@@ -1,5 +1,6 @@
 mod proxy;
 mod target;
+mod testserver;
 mod utils;
 
 use clap::{Args, Parser, Subcommand};
@@ -75,6 +76,17 @@ enum Commands {
         #[command(flatten)]
         proxy_args: ProxyArgs,
     },
+
+    /// Run a test MCP server with verbose logging
+    Testserver {
+        /// Use stdio transport instead of HTTP
+        #[arg(long)]
+        stdio: bool,
+
+        /// Port to listen on (for HTTP transport)
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+    },
 }
 
 #[tokio::main]
@@ -83,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Version => {
-            println!("mcptool version {}", VERSION);
+            println!("mcptool version {VERSION}");
             println!(
                 "MCP protocol version: {}",
                 tenx_mcp::schema::LATEST_PROTOCOL_VERSION
@@ -109,13 +121,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let target = Target::parse(&proxy_args.target)?;
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
+
+        Commands::Testserver { stdio, port } => {
+            testserver::run_test_server(stdio, port).await?;
+        }
     }
 
     Ok(())
 }
 
 async fn ping_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Pinging {}...", target);
+    println!("Pinging {target}...");
 
     ping_once(&target).await?;
 
@@ -130,11 +146,11 @@ async fn connect_to_server(
 
     let init_result = match target {
         Target::Tcp { host, port } => {
-            let addr = format!("{}:{}", host, port);
+            let addr = format!("{host}:{port}");
             client
                 .connect_tcp(&addr)
                 .await
-                .map_err(|e| format!("Failed to connect to TCP address {}: {}", addr, e))?
+                .map_err(|e| format!("Failed to connect to TCP address {addr}: {e}"))?
         }
         Target::Stdio { command, args } => {
             println!(
@@ -149,13 +165,13 @@ async fn connect_to_server(
             let _child = client
                 .connect_process(cmd)
                 .await
-                .map_err(|e| format!("Failed to spawn MCP server process: {}", e))?;
+                .map_err(|e| format!("Failed to spawn MCP server process: {e}"))?;
 
             // The new API handles initialization automatically
             client
                 .init()
                 .await
-                .map_err(|e| format!("Failed to initialize MCP client: {}", e))?
+                .map_err(|e| format!("Failed to initialize MCP client: {e}"))?
         }
     };
 
@@ -196,7 +212,7 @@ fn display_tools(
             match &tool.description {
                 Some(description) => {
                     for line in description.lines() {
-                        println!("      {}", line);
+                        println!("      {line}");
                     }
                 }
                 None => println!("      No description available"),
@@ -217,16 +233,16 @@ fn display_tools(
                 Some(properties) => {
                     for (name, schema) in properties {
                         let rendered_schema = serde_json::to_string_pretty(schema)
-                            .map_err(|e| format!("Failed to serialize schema: {}", e))?;
+                            .map_err(|e| format!("Failed to serialize schema: {e}"))?;
                         let is_required = &tool
                             .clone()
                             .input_schema
                             .required
                             .is_some_and(|list| list.contains(name));
-                        println!("      {} - (required: {})\n", name, is_required);
+                        println!("      {name} - (required: {is_required})\n");
 
                         for line in rendered_schema.lines() {
-                            println!("        {}", line);
+                            println!("        {line}");
                         }
                         println!();
                     }
@@ -247,7 +263,7 @@ async fn execute_listtools(client: &mut Client<()>) -> Result<(), Box<dyn std::e
 }
 
 async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Listing tools from {}...", target);
+    println!("Listing tools from {target}...");
 
     let (mut client, init_result) = connect_to_server(&target).await?;
 
@@ -262,7 +278,7 @@ async fn listtools_command(target: Target) -> Result<(), Box<dyn std::error::Err
 }
 
 async fn connect_command(target: Target) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Connecting to {}...", target);
+    println!("Connecting to {target}...");
 
     let (mut client, init_result) = connect_to_server(&target).await?;
 
@@ -299,16 +315,15 @@ async fn connect_command(target: Target) -> Result<(), Box<dyn std::error::Error
                     }
                     "ping" => match execute_ping(&mut client).await {
                         Ok(_) => println!("Ping successful!"),
-                        Err(e) => println!("Ping failed: {}", e),
+                        Err(e) => println!("Ping failed: {e}"),
                     },
                     "listtools" => match execute_listtools(&mut client).await {
                         Ok(_) => {}
-                        Err(e) => println!("Failed to list tools: {}", e),
+                        Err(e) => println!("Failed to list tools: {e}"),
                     },
                     _ => {
                         println!(
-                            "Unknown command: {}. Type 'help' for available commands.",
-                            line
+                            "Unknown command: {line}. Type 'help' for available commands."
                         );
                     }
                 }
@@ -322,7 +337,7 @@ async fn connect_command(target: Target) -> Result<(), Box<dyn std::error::Error
                 break;
             }
             Err(err) => {
-                println!("Error: {:?}", err);
+                println!("Error: {err:?}");
                 break;
             }
         }

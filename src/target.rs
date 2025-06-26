@@ -8,11 +8,9 @@ pub enum Target {
 
 impl Target {
     pub fn parse(input: &str) -> Result<Self, String> {
-        if input.starts_with("tcp://") {
-            let remainder = &input[6..];
+        if let Some(remainder) = input.strip_prefix("tcp://") {
             Self::parse_tcp(remainder)
-        } else if input.starts_with("cmd://") {
-            let remainder = &input[6..];
+        } else if let Some(remainder) = input.strip_prefix("cmd://") {
             Self::parse_stdio(remainder)
         } else {
             // Implicit TCP
@@ -34,7 +32,7 @@ impl Target {
             }
             let port = port_str
                 .parse::<u16>()
-                .map_err(|_| format!("Invalid port: {}", port_str))?;
+                .map_err(|_| format!("Invalid port: {port_str}"))?;
             return Ok(Target::Tcp {
                 host: "0.0.0.0".to_string(),
                 port,
@@ -49,11 +47,10 @@ impl Target {
 
                 if remainder.is_empty() {
                     return Err("Port is required for TCP targets".to_string());
-                } else if remainder.starts_with(':') {
-                    let port_str = &remainder[1..];
+                } else if let Some(port_str) = remainder.strip_prefix(':') {
                     let port = port_str
                         .parse::<u16>()
-                        .map_err(|_| format!("Invalid port: {}", port_str))?;
+                        .map_err(|_| format!("Invalid port: {port_str}"))?;
                     return Ok(Target::Tcp { host, port });
                 } else {
                     return Err("Invalid character after IPv6 address".to_string());
@@ -77,7 +74,7 @@ impl Target {
             } else {
                 let port = port_str
                     .parse::<u16>()
-                    .map_err(|_| format!("Invalid port: {}", port_str))?;
+                    .map_err(|_| format!("Invalid port: {port_str}"))?;
                 Ok(Target::Tcp { host, port })
             }
         } else {
@@ -92,7 +89,7 @@ impl Target {
 
         // Simple shell-like parsing
         let parts =
-            shell_words::split(input).map_err(|e| format!("Failed to parse command: {}", e))?;
+            shell_words::split(input).map_err(|e| format!("Failed to parse command: {e}"))?;
 
         if parts.is_empty() {
             return Err("Empty command after parsing".to_string());
@@ -111,14 +108,14 @@ impl fmt::Display for Target {
             Target::Tcp { host, port } => {
                 // Check if host is an IPv6 address (contains colons but not already bracketed)
                 if host.contains(':') && !host.starts_with('[') {
-                    write!(f, "tcp://[{}]:{}", host, port)
+                    write!(f, "tcp://[{host}]:{port}")
                 } else {
-                    write!(f, "tcp://{}:{}", host, port)
+                    write!(f, "tcp://{host}:{port}")
                 }
             }
             Target::Stdio { command, args } => {
                 if args.is_empty() {
-                    write!(f, "cmd://{}", command)
+                    write!(f, "cmd://{command}")
                 } else {
                     write!(f, "cmd://{} {}", command, shell_words::join(args))
                 }

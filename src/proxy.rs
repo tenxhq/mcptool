@@ -13,7 +13,7 @@ async fn log_traffic(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let timestamp = Utc::now().to_rfc3339();
     log_writer
-        .write_all(format!("{}\n{}:\n", timestamp, direction).as_bytes())
+        .write_all(format!("{timestamp}\n{direction}:\n").as_bytes())
         .await?;
     log_writer.write_all(data).await?;
     log_writer.write_all(b"\n").await?;
@@ -66,7 +66,7 @@ pub async fn proxy_command(
 
     match target {
         Target::Tcp { host, port } => {
-            let addr = format!("{}:{}", host, port);
+            let addr = format!("{host}:{port}");
             let target_stream = TcpStream::connect(&addr).await?;
             proxy_streams(stdin, stdout, target_stream, log_writer.as_mut().unwrap()).await?;
         }

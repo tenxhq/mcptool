@@ -20,7 +20,7 @@ async fn test_ipv6_parsing_and_display() {
 
                 // Test display format includes brackets
                 let display = target.to_string();
-                assert!(display.contains(&format!("[{}]", expected_host)));
+                assert!(display.contains(&format!("[{expected_host}]")));
             }
             _ => panic!("Expected TCP target"),
         }
@@ -49,7 +49,7 @@ async fn test_ipv6_connectivity() {
     });
 
     // Test that we can parse and format IPv6 addresses correctly
-    let target_str = format!("[::1]:{}", port);
+    let target_str = format!("[::1]:{port}");
     let target = Target::parse(&target_str).expect("Should parse IPv6 target");
 
     match target {
@@ -64,7 +64,7 @@ async fn test_ipv6_connectivity() {
     }
 
     // Verify the display format
-    assert_eq!(target.to_string(), format!("tcp://[::1]:{}", port));
+    assert_eq!(target.to_string(), format!("tcp://[::1]:{port}"));
 }
 
 #[test]
@@ -77,13 +77,13 @@ fn test_port_only_format() {
     ];
 
     for (input, expected_host, expected_port) in test_cases {
-        let target = Target::parse(input).expect(&format!("Should parse: {}", input));
+        let target = Target::parse(input).unwrap_or_else(|_| panic!("Should parse: {input}"));
         match target {
             Target::Tcp { ref host, port } => {
-                assert_eq!(host, expected_host, "Failed for input: {}", input);
-                assert_eq!(port, expected_port, "Failed for input: {}", input);
+                assert_eq!(host, expected_host, "Failed for input: {input}");
+                assert_eq!(port, expected_port, "Failed for input: {input}");
             }
-            _ => panic!("Expected TCP target for: {}", input),
+            _ => panic!("Expected TCP target for: {input}"),
         }
     }
 
@@ -104,13 +104,13 @@ fn test_ipv6_parsing_edge_cases() {
     ];
 
     for (input, expected_host, expected_port) in valid_cases {
-        let target = Target::parse(input).expect(&format!("Should parse: {}", input));
+        let target = Target::parse(input).unwrap_or_else(|_| panic!("Should parse: {input}"));
         match target {
             Target::Tcp { ref host, port } => {
-                assert_eq!(host, expected_host, "Failed for input: {}", input);
-                assert_eq!(port, expected_port, "Failed for input: {}", input);
+                assert_eq!(host, expected_host, "Failed for input: {input}");
+                assert_eq!(port, expected_port, "Failed for input: {input}");
             }
-            _ => panic!("Expected TCP target for: {}", input),
+            _ => panic!("Expected TCP target for: {input}"),
         }
     }
 
@@ -125,8 +125,7 @@ fn test_ipv6_parsing_edge_cases() {
     for input in invalid_cases {
         assert!(
             Target::parse(input).is_err(),
-            "Should fail to parse: {}",
-            input
+            "Should fail to parse: {input}"
         );
     }
 }

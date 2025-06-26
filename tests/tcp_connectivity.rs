@@ -114,7 +114,7 @@ async fn test_multiple_connections() {
     for i in 0..3 {
         let mut client = TcpStream::connect(addr)
             .await
-            .expect(&format!("Failed to connect on attempt {}", i));
+            .unwrap_or_else(|_| panic!("Failed to connect on attempt {i}"));
 
         client.write_all(b"test").await.expect("Failed to write");
 
@@ -140,14 +140,9 @@ async fn test_verify_port_is_actually_open() {
 
     // Spawn a server that accepts connections
     let server_handle = tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((mut stream, _)) => {
-                    // Echo back a simple message
-                    let _ = stream.write_all(b"PORT_IS_OPEN").await;
-                }
-                Err(_) => break,
-            }
+        while let Ok((mut stream, _)) = listener.accept().await {
+            // Echo back a simple message
+            let _ = stream.write_all(b"PORT_IS_OPEN").await;
         }
     });
 

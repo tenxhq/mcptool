@@ -21,15 +21,15 @@ fn main() {
     println!("IPv6 Address Parsing Demo\n");
 
     for input in test_cases {
-        print!("Parsing '{}': ", input);
+        print!("Parsing '{input}': ");
         match Target::parse(input) {
             Ok(target) => {
                 println!("✓ Success");
-                println!("  Parsed as: {:?}", target);
-                println!("  Display as: {}", target);
+                println!("  Parsed as: {target:?}");
+                println!("  Display as: {target}");
             }
             Err(e) => {
-                println!("✗ Error: {}", e);
+                println!("✗ Error: {e}");
             }
         }
         println!();
