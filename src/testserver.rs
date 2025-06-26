@@ -1,3 +1,4 @@
+use crate::output::Output;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tenx_mcp::{
@@ -12,47 +13,49 @@ use tenx_mcp::{
 #[derive(Clone)]
 struct TestServerConn {
     request_counter: Arc<Mutex<u64>>,
+    output: Arc<Mutex<Output>>,
 }
 
 impl TestServerConn {
     fn new() -> Self {
         Self {
             request_counter: Arc::new(Mutex::new(0)),
+            output: Arc::new(Mutex::new(Output::new())),
         }
     }
 
     fn log_request(&self, method: &str, params: &str) {
         let mut counter = self.request_counter.lock().unwrap();
         *counter += 1;
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        println!("\n[{timestamp}] REQUEST #{counter} - {method}");
-        println!("Parameters: {params}");
+        let mut output = self.output.lock().unwrap();
+        let _ = output.heading(&format!("request #{counter} - {method}"));
+        let _ = output.text(&format!("parameters: {params}"));
     }
 
     fn log_response(&self, method: &str, response: &str) {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        println!("[{timestamp}] RESPONSE - {method}");
-        println!("Result: {response}");
+        let mut output = self.output.lock().unwrap();
+        let _ = output.heading(&format!("response - {method}"));
+        let _ = output.text(&format!("result: {response}"));
     }
 
     fn log_notification(&self, notification: &str) {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        println!("\n[{timestamp}] NOTIFICATION");
-        println!("Content: {notification}");
+        let mut output = self.output.lock().unwrap();
+        let _ = output.heading("notification");
+        let _ = output.text(&format!("content: {notification}"));
     }
 }
 
 #[async_trait::async_trait]
 impl ServerConn for TestServerConn {
     async fn on_connect(&self, _context: &ServerCtx) -> Result<()> {
-        println!("\n=== TEST SERVER CONNECTED ===");
-        println!("Client connected to test server");
+        let mut output = self.output.lock().unwrap();
+        let _ = output.success("client connected");
         Ok(())
     }
 
     async fn on_disconnect(&self) -> Result<()> {
-        println!("\n=== TEST SERVER DISCONNECTED ===");
-        println!("Client disconnected from test server");
+        let mut output = self.output.lock().unwrap();
+        let _ = output.warn("disconnected");
         Ok(())
     }
 
@@ -177,32 +180,35 @@ impl ServerConn for TestServerConn {
 }
 
 pub async fn run_test_server(stdio: bool, port: u16) -> Result<()> {
-    println!("=== MCPTOOL TEST SERVER ===");
-    println!("Version: {}", env!("CARGO_PKG_VERSION"));
-    println!("Protocol: {}", tenx_mcp::schema::LATEST_PROTOCOL_VERSION);
+    let mut output = Output::new();
+    let _ = output.heading("mcptool testserver");
+    let _ = output.text(&format!("Version: {}", env!("CARGO_PKG_VERSION")));
+    let _ = output.text(&format!(
+        "Protocol: {}",
+        tenx_mcp::schema::LATEST_PROTOCOL_VERSION
+    ));
 
     let server = Server::default()
         .with_connection(TestServerConn::new)
         .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
 
     if stdio {
-        println!("Transport: stdio");
-        println!("Waiting for client connection on stdin/stdout...\n");
+        let _ = output.text("Transport: stdio");
+        let _ = output.text("Waiting for client connection on stdin/stdout...");
         server.serve_stdio().await?;
     } else {
         let addr = format!("127.0.0.1:{port}");
-        println!("Transport: HTTP");
-        println!("Listening on: http://{addr}");
-        println!("Press Ctrl+C to stop the server\n");
+        let _ = output.text("Transport: HTTP");
+        let _ = output.success(&format!("Listening on: http://{addr}"));
+        let _ = output.text("Press Ctrl+C to stop the server");
 
         let handle = server.serve_http(&addr).await?;
 
         // Wait for Ctrl+C
         tokio::signal::ctrl_c().await.unwrap();
-        println!("\nShutting down server...");
+        let _ = output.warn("Shutting down server...");
         handle.stop().await?;
     }
 
     Ok(())
 }
-

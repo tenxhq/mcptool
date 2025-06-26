@@ -81,4 +81,3 @@ fn display_tools(
     }
     Ok(())
 }
-

@@ -30,4 +30,3 @@ async fn execute_ping(client: &mut Client<()>) -> Result<(), Box<dyn std::error:
     client.ping().timed("Pinged").await?;
     Ok(())
 }
-

@@ -1,5 +1,5 @@
-use crate::target::Target;
 use crate::VERSION;
+use crate::target::Target;
 use tenx_mcp::{
     Client,
     schema::{ClientCapabilities, InitializeResult},
@@ -8,8 +8,8 @@ use tenx_mcp::{
 pub async fn connect_to_server(
     target: &Target,
 ) -> Result<(Client<()>, InitializeResult), Box<dyn std::error::Error>> {
-    let mut client = Client::new("mcptool", VERSION)
-        .with_capabilities(ClientCapabilities::default());
+    let mut client =
+        Client::new("mcptool", VERSION).with_capabilities(ClientCapabilities::default());
 
     let init_result = match target {
         Target::Tcp { host, port } => {

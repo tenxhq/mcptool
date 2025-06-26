@@ -1,6 +1,7 @@
 mod common;
 mod connect;
 mod listtools;
+mod output;
 mod ping;
 mod proxy;
 mod target;

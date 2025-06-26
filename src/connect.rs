@@ -49,9 +49,7 @@ pub async fn connect_command(target: Target) -> Result<(), Box<dyn std::error::E
                         Err(e) => println!("Failed to list tools: {e}"),
                     },
                     _ => {
-                        println!(
-                            "Unknown command: {line}. Type 'help' for available commands."
-                        );
+                        println!("Unknown command: {line}. Type 'help' for available commands.");
                     }
                 }
             }
@@ -141,4 +139,3 @@ fn display_tools(
     }
     Ok(())
 }
-
