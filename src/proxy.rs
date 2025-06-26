@@ -89,6 +89,9 @@ pub async fn proxy_command(
             )
             .await?;
         }
+        Target::Http { .. } | Target::Https { .. } => {
+            return Err("HTTP/HTTPS connections are not yet supported for proxy".into());
+        }
     }
 
     Ok(())

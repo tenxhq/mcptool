@@ -40,6 +40,9 @@ pub async fn connect_to_server(
                 .await
                 .map_err(|e| format!("Failed to initialize MCP client: {e}"))?
         }
+        Target::Http { .. } | Target::Https { .. } => {
+            return Err("HTTP/HTTPS connections are not yet supported".into());
+        }
     };
 
     Ok((client, init_result))

@@ -4,6 +4,8 @@ use std::fmt;
 pub enum Target {
     Tcp { host: String, port: u16 },
     Stdio { command: String, args: Vec<String> },
+    Http { host: String, port: u16 },
+    Https { host: String, port: u16 },
 }
 
 impl Target {
@@ -12,6 +14,10 @@ impl Target {
             Self::parse_tcp(remainder)
         } else if let Some(remainder) = input.strip_prefix("cmd://") {
             Self::parse_stdio(remainder)
+        } else if let Some(remainder) = input.strip_prefix("https://") {
+            Self::parse_https(remainder)
+        } else if let Some(remainder) = input.strip_prefix("http://") {
+            Self::parse_http(remainder)
         } else {
             // Implicit TCP
             Self::parse_tcp(input)
@@ -100,6 +106,66 @@ impl Target {
 
         Ok(Target::Stdio { command, args })
     }
+
+    fn parse_http(input: &str) -> Result<Self, String> {
+        Self::parse_http_common(input, 80, |host, port| Target::Http { host, port })
+    }
+
+    fn parse_https(input: &str) -> Result<Self, String> {
+        Self::parse_http_common(input, 443, |host, port| Target::Https { host, port })
+    }
+
+    fn parse_http_common<F>(input: &str, default_port: u16, constructor: F) -> Result<Self, String>
+    where
+        F: Fn(String, u16) -> Target,
+    {
+        if input.is_empty() {
+            return Err("Empty host specification".to_string());
+        }
+
+        // Handle IPv6 addresses in brackets
+        if input.starts_with('[') {
+            if let Some(end) = input.find(']') {
+                let host = input[1..end].to_string();
+                let remainder = &input[end + 1..];
+
+                if remainder.is_empty() {
+                    return Ok(constructor(host, default_port));
+                } else if let Some(port_str) = remainder.strip_prefix(':') {
+                    let port = port_str
+                        .parse::<u16>()
+                        .map_err(|_| format!("Invalid port: {port_str}"))?;
+                    return Ok(constructor(host, port));
+                } else {
+                    return Err("Invalid character after IPv6 address".to_string());
+                }
+            } else {
+                return Err("Unclosed IPv6 address bracket".to_string());
+            }
+        }
+
+        // Handle regular host or host:port
+        if let Some(colon_pos) = input.rfind(':') {
+            let host = input[..colon_pos].to_string();
+            let port_str = &input[colon_pos + 1..];
+
+            // Check if this might be part of an IPv6 address without brackets
+            if host.contains(':') {
+                // This is likely an IPv6 address without brackets and no port
+                Ok(constructor(input.to_string(), default_port))
+            } else if port_str.is_empty() {
+                Err("Empty port specification".to_string())
+            } else {
+                let port = port_str
+                    .parse::<u16>()
+                    .map_err(|_| format!("Invalid port: {port_str}"))?;
+                Ok(constructor(host, port))
+            }
+        } else {
+            // Just a hostname, use default port
+            Ok(constructor(input.to_string(), default_port))
+        }
+    }
 }
 
 impl fmt::Display for Target {
@@ -118,6 +184,34 @@ impl fmt::Display for Target {
                     write!(f, "cmd://{command}")
                 } else {
                     write!(f, "cmd://{} {}", command, shell_words::join(args))
+                }
+            }
+            Target::Http { host, port } => {
+                // Check if host is an IPv6 address
+                if host.contains(':') && !host.starts_with('[') {
+                    if *port == 80 {
+                        write!(f, "http://[{host}]")
+                    } else {
+                        write!(f, "http://[{host}]:{port}")
+                    }
+                } else if *port == 80 {
+                    write!(f, "http://{host}")
+                } else {
+                    write!(f, "http://{host}:{port}")
+                }
+            }
+            Target::Https { host, port } => {
+                // Check if host is an IPv6 address
+                if host.contains(':') && !host.starts_with('[') {
+                    if *port == 443 {
+                        write!(f, "https://[{host}]")
+                    } else {
+                        write!(f, "https://[{host}]:{port}")
+                    }
+                } else if *port == 443 {
+                    write!(f, "https://{host}")
+                } else {
+                    write!(f, "https://{host}:{port}")
                 }
             }
         }
@@ -297,6 +391,106 @@ mod tests {
                 expected: Err("Invalid character after IPv6 address"),
                 description: "invalid character after IPv6",
             },
+            // HTTP tests
+            TestCase {
+                input: "http://example.com",
+                expected: Ok(Target::Http {
+                    host: "example.com".to_string(),
+                    port: 80,
+                }),
+                description: "HTTP with default port",
+            },
+            TestCase {
+                input: "http://example.com:8080",
+                expected: Ok(Target::Http {
+                    host: "example.com".to_string(),
+                    port: 8080,
+                }),
+                description: "HTTP with custom port",
+            },
+            TestCase {
+                input: "http://[::1]",
+                expected: Ok(Target::Http {
+                    host: "::1".to_string(),
+                    port: 80,
+                }),
+                description: "HTTP with IPv6 default port",
+            },
+            TestCase {
+                input: "http://[2001:db8::1]:8080",
+                expected: Ok(Target::Http {
+                    host: "2001:db8::1".to_string(),
+                    port: 8080,
+                }),
+                description: "HTTP with IPv6 and custom port",
+            },
+            TestCase {
+                input: "http://::1",
+                expected: Ok(Target::Http {
+                    host: "::1".to_string(),
+                    port: 80,
+                }),
+                description: "HTTP with IPv6 no brackets",
+            },
+            // HTTPS tests
+            TestCase {
+                input: "https://example.com",
+                expected: Ok(Target::Https {
+                    host: "example.com".to_string(),
+                    port: 443,
+                }),
+                description: "HTTPS with default port",
+            },
+            TestCase {
+                input: "https://example.com:8443",
+                expected: Ok(Target::Https {
+                    host: "example.com".to_string(),
+                    port: 8443,
+                }),
+                description: "HTTPS with custom port",
+            },
+            TestCase {
+                input: "https://[::1]",
+                expected: Ok(Target::Https {
+                    host: "::1".to_string(),
+                    port: 443,
+                }),
+                description: "HTTPS with IPv6 default port",
+            },
+            TestCase {
+                input: "https://[2001:db8::1]:8443",
+                expected: Ok(Target::Https {
+                    host: "2001:db8::1".to_string(),
+                    port: 8443,
+                }),
+                description: "HTTPS with IPv6 and custom port",
+            },
+            // HTTP/HTTPS error cases
+            TestCase {
+                input: "http://",
+                expected: Err("Empty host specification"),
+                description: "HTTP scheme without host",
+            },
+            TestCase {
+                input: "https://",
+                expected: Err("Empty host specification"),
+                description: "HTTPS scheme without host",
+            },
+            TestCase {
+                input: "http://example.com:",
+                expected: Err("Empty port specification"),
+                description: "HTTP with colon but no port",
+            },
+            TestCase {
+                input: "https://example.com:abc",
+                expected: Err("Invalid port: abc"),
+                description: "HTTPS invalid port",
+            },
+            TestCase {
+                input: "http://[::1",
+                expected: Err("Unclosed IPv6 address bracket"),
+                description: "HTTP unclosed IPv6 bracket",
+            },
         ];
 
         for test_case in test_cases {
@@ -379,6 +573,72 @@ mod tests {
                 },
                 expected: r#"cmd://server --path '/some path/'"#,
                 description: "stdio with quoted args",
+            },
+            // HTTP display tests
+            TestCase {
+                target: Target::Http {
+                    host: "example.com".to_string(),
+                    port: 80,
+                },
+                expected: "http://example.com",
+                description: "HTTP with default port",
+            },
+            TestCase {
+                target: Target::Http {
+                    host: "example.com".to_string(),
+                    port: 8080,
+                },
+                expected: "http://example.com:8080",
+                description: "HTTP with custom port",
+            },
+            TestCase {
+                target: Target::Http {
+                    host: "::1".to_string(),
+                    port: 80,
+                },
+                expected: "http://[::1]",
+                description: "HTTP IPv6 with default port",
+            },
+            TestCase {
+                target: Target::Http {
+                    host: "2001:db8::1".to_string(),
+                    port: 8080,
+                },
+                expected: "http://[2001:db8::1]:8080",
+                description: "HTTP IPv6 with custom port",
+            },
+            // HTTPS display tests
+            TestCase {
+                target: Target::Https {
+                    host: "example.com".to_string(),
+                    port: 443,
+                },
+                expected: "https://example.com",
+                description: "HTTPS with default port",
+            },
+            TestCase {
+                target: Target::Https {
+                    host: "example.com".to_string(),
+                    port: 8443,
+                },
+                expected: "https://example.com:8443",
+                description: "HTTPS with custom port",
+            },
+            TestCase {
+                target: Target::Https {
+                    host: "::1".to_string(),
+                    port: 443,
+                },
+                expected: "https://[::1]",
+                description: "HTTPS IPv6 with default port",
+            },
+            TestCase {
+                target: Target::Https {
+                    host: "2001:db8::1".to_string(),
+                    port: 8443,
+                },
+                expected: "https://[2001:db8::1]:8443",
+                description: "HTTPS IPv6 with custom port",
             },
         ];
 
