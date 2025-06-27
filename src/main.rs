@@ -78,9 +78,9 @@ enum Commands {
         #[arg(short, long, default_value = "8080")]
         port: u16,
 
-        /// Enable tracing with optional level (error, warn, info, debug, trace)
+        /// Enable logging with optional level (error, warn, info, debug, trace)
         #[arg(long, value_name = "LEVEL")]
-        trace: Option<Option<String>>,
+        logs: Option<Option<String>>,
     },
 }
 
@@ -118,8 +118,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
 
-        Commands::Testserver { stdio, port, trace } => {
-            testserver::run_test_server(stdio, port, trace).await?;
+        Commands::Testserver { stdio, port, logs } => {
+            testserver::run_test_server(stdio, port, logs).await?;
         }
     }
 

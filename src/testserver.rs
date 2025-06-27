@@ -55,7 +55,6 @@ impl ServerConn for TestServerConn {
     }
 
     async fn on_shutdown(&self) -> Result<()> {
-        let _ = self.output.warn("shutdown");
         Ok(())
     }
 
@@ -179,20 +178,18 @@ impl ServerConn for TestServerConn {
     }
 }
 
-pub async fn run_test_server(stdio: bool, port: u16, trace: Option<Option<String>>) -> Result<()> {
-    let output = if let Some(trace_level) = trace {
-        let level = match trace_level.as_deref() {
+pub async fn run_test_server(stdio: bool, port: u16, logs: Option<Option<String>>) -> Result<()> {
+    let output = if let Some(log_level) = logs {
+        let level = match log_level.as_deref() {
             Some("error") => Some(Level::ERROR),
             Some("warn") => Some(Level::WARN),
             Some("info") => Some(Level::INFO),
             Some("debug") => Some(Level::DEBUG),
             Some("trace") => Some(Level::TRACE),
             Some(other) => {
-                return Err(Error::InvalidParams(format!(
-                    "Invalid trace level: {other}"
-                )));
+                return Err(Error::InvalidParams(format!("Invalid log level: {other}")));
             }
-            None => Some(Level::INFO), // Default to INFO if --trace is used without a level
+            None => Some(Level::INFO), // Default to INFO if --logs is used without a level
         };
         init_logging(level)
     } else {
