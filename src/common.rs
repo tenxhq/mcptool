@@ -1,9 +1,12 @@
 use crate::VERSION;
+use crate::output::{Output, OutputLayer};
 use crate::target::Target;
 use tenx_mcp::{
     Client,
     schema::{ClientCapabilities, InitializeResult},
 };
+use tracing::Level;
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub async fn connect_to_server(
     target: &Target,
@@ -57,4 +60,27 @@ pub async fn connect_to_server(
     };
 
     Ok((client, init_result))
+}
+
+pub fn init_logging(level: Option<Level>) -> Output {
+    let output = Output::new();
+
+    let env_filter = match level {
+        Some(Level::ERROR) => EnvFilter::try_new("error").unwrap_or_default(),
+        Some(Level::WARN) => EnvFilter::try_new("warn").unwrap_or_default(),
+        Some(Level::INFO) => EnvFilter::try_new("info").unwrap_or_default(),
+        Some(Level::DEBUG) => EnvFilter::try_new("debug").unwrap_or_default(),
+        Some(Level::TRACE) => EnvFilter::try_new("trace").unwrap_or_default(),
+        None => EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::try_new("info").unwrap()),
+    };
+
+    let output_layer = OutputLayer::new(output.clone());
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(output_layer)
+        .init();
+
+    output
 }

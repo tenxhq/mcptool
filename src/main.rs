@@ -9,16 +9,8 @@ mod testserver;
 mod utils;
 
 use clap::{Args, Parser, Subcommand};
+use mcptool::VERSION;
 use target::Target;
-
-pub const VERSION: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
-    "-",
-    env!("VERGEN_GIT_SHA"),
-    " (",
-    env!("VERGEN_BUILD_DATE"),
-    ")"
-);
 
 #[derive(Args)]
 struct TargetArgs {
@@ -85,6 +77,10 @@ enum Commands {
         /// Port to listen on (for HTTP transport)
         #[arg(short, long, default_value = "8080")]
         port: u16,
+
+        /// Enable tracing with optional level (error, warn, info, debug, trace)
+        #[arg(long, value_name = "LEVEL")]
+        trace: Option<Option<String>>,
     },
 }
 
@@ -121,8 +117,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
 
-        Commands::Testserver { stdio, port } => {
-            testserver::run_test_server(stdio, port).await?;
+        Commands::Testserver { stdio, port, trace } => {
+            testserver::run_test_server(stdio, port, trace).await?;
         }
     }
 

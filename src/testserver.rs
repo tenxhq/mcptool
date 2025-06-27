@@ -1,6 +1,6 @@
+use crate::common::init_logging;
 use crate::output::Output;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tenx_mcp::{
     Error, Result, Server, ServerConn, ServerCtx,
     schema::{
@@ -8,54 +8,54 @@ use tenx_mcp::{
         ListToolsResult, ServerCapabilities, Tool, ToolInputSchema,
     },
 };
+use tracing::Level;
 
 /// A test server connection that logs all interactions verbosely
 #[derive(Clone)]
 struct TestServerConn {
     request_counter: Arc<Mutex<u64>>,
-    output: Arc<Mutex<Output>>,
+    output: Output,
 }
 
 impl TestServerConn {
-    fn new() -> Self {
+    fn new(output: Output) -> Self {
         Self {
             request_counter: Arc::new(Mutex::new(0)),
-            output: Arc::new(Mutex::new(Output::new())),
+            output,
         }
     }
 
     fn log_request(&self, method: &str, params: &str) {
         let mut counter = self.request_counter.lock().unwrap();
         *counter += 1;
-        let mut output = self.output.lock().unwrap();
-        let _ = output.heading(&format!("request #{counter} - {method}"));
-        let _ = output.text(&format!("parameters: {params}"));
+        let _ = self
+            .output
+            .heading(&format!("request #{counter} - {method}"));
+        let _ = self.output.text(&format!("parameters: {params}"));
     }
 
     fn log_response(&self, method: &str, response: &str) {
-        let mut output = self.output.lock().unwrap();
-        let _ = output.heading(&format!("response - {method}"));
-        let _ = output.text(&format!("result: {response}"));
+        let _ = self.output.heading(&format!("response - {method}"));
+        let _ = self.output.text(&format!("result: {response}"));
     }
 
     fn log_notification(&self, notification: &str) {
-        let mut output = self.output.lock().unwrap();
-        let _ = output.heading("notification");
-        let _ = output.text(&format!("content: {notification}"));
+        let _ = self.output.heading("notification");
+        let _ = self.output.text(&format!("content: {notification}"));
     }
 }
 
 #[async_trait::async_trait]
 impl ServerConn for TestServerConn {
-    async fn on_connect(&self, _context: &ServerCtx) -> Result<()> {
-        let mut output = self.output.lock().unwrap();
-        let _ = output.success("client connected");
+    async fn on_connect(&self, _context: &ServerCtx, remote_addr: &str) -> Result<()> {
+        let _ = self
+            .output
+            .success(&format!("client connected from {}", remote_addr));
         Ok(())
     }
 
-    async fn on_disconnect(&self) -> Result<()> {
-        let mut output = self.output.lock().unwrap();
-        let _ = output.warn("disconnected");
+    async fn on_shutdown(&self) -> Result<()> {
+        let _ = self.output.warn("shutdown");
         Ok(())
     }
 
@@ -179,8 +179,26 @@ impl ServerConn for TestServerConn {
     }
 }
 
-pub async fn run_test_server(stdio: bool, port: u16) -> Result<()> {
-    let mut output = Output::new();
+pub async fn run_test_server(stdio: bool, port: u16, trace: Option<Option<String>>) -> Result<()> {
+    let output = if let Some(trace_level) = trace {
+        let level = match trace_level.as_deref() {
+            Some("error") => Some(Level::ERROR),
+            Some("warn") => Some(Level::WARN),
+            Some("info") => Some(Level::INFO),
+            Some("debug") => Some(Level::DEBUG),
+            Some("trace") => Some(Level::TRACE),
+            Some(other) => {
+                return Err(Error::InvalidParams(format!(
+                    "Invalid trace level: {}",
+                    other
+                )));
+            }
+            None => Some(Level::INFO), // Default to INFO if --trace is used without a level
+        };
+        init_logging(level)
+    } else {
+        Output::new()
+    };
     let _ = output.heading("mcptool testserver");
     let _ = output.text(&format!("Version: {}", env!("CARGO_PKG_VERSION")));
     let _ = output.text(&format!(
@@ -188,8 +206,9 @@ pub async fn run_test_server(stdio: bool, port: u16) -> Result<()> {
         tenx_mcp::schema::LATEST_PROTOCOL_VERSION
     ));
 
+    let output_for_conn = output.clone();
     let server = Server::default()
-        .with_connection(TestServerConn::new)
+        .with_connection(move || TestServerConn::new(output_for_conn.clone()))
         .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
 
     if stdio {
