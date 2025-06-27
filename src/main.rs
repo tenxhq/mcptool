@@ -60,6 +60,10 @@ enum Commands {
     Connect {
         #[command(flatten)]
         target_args: TargetArgs,
+
+        /// Enable logging with optional level (error, warn, info, debug, trace)
+        #[arg(long, value_name = "LEVEL")]
+        logs: Option<Option<String>>,
     },
 
     /// Transparently proxy and print traffic forwarded to the target
@@ -107,9 +111,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             listtools::listtools_command(target).await?;
         }
 
-        Commands::Connect { target_args } => {
+        Commands::Connect { target_args, logs } => {
             let target = Target::parse(&target_args.target)?;
-            let output = output::Output::new();
+            let output = common::create_output_with_logging(logs)?;
             connect::connect_command(target, output).await?;
         }
 

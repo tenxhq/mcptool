@@ -1,4 +1,4 @@
-use crate::common::init_logging;
+use crate::common::create_output_with_logging;
 use crate::output::Output;
 use std::sync::{Arc, Mutex};
 use tenx_mcp::{
@@ -8,7 +8,6 @@ use tenx_mcp::{
         ListToolsResult, ServerCapabilities, Tool, ToolInputSchema,
     },
 };
-use tracing::Level;
 
 /// A test server connection that logs all interactions verbosely
 #[derive(Clone)]
@@ -179,22 +178,8 @@ impl ServerConn for TestServerConn {
 }
 
 pub async fn run_test_server(stdio: bool, port: u16, logs: Option<Option<String>>) -> Result<()> {
-    let output = if let Some(log_level) = logs {
-        let level = match log_level.as_deref() {
-            Some("error") => Some(Level::ERROR),
-            Some("warn") => Some(Level::WARN),
-            Some("info") => Some(Level::INFO),
-            Some("debug") => Some(Level::DEBUG),
-            Some("trace") => Some(Level::TRACE),
-            Some(other) => {
-                return Err(Error::InvalidParams(format!("Invalid log level: {other}")));
-            }
-            None => Some(Level::INFO), // Default to INFO if --logs is used without a level
-        };
-        init_logging(level)
-    } else {
-        Output::new()
-    };
+    let output =
+        create_output_with_logging(logs).map_err(|e| Error::InvalidParams(e.to_string()))?;
     let _ = output.heading("mcptool testserver");
     let _ = output.text(&format!("Version: {}", env!("CARGO_PKG_VERSION")));
     let _ = output.text(&format!(

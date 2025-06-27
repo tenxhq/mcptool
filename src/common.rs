@@ -84,3 +84,24 @@ pub fn init_logging(level: Option<Level>) -> Output {
 
     output
 }
+
+pub fn create_output_with_logging(
+    logs: Option<Option<String>>,
+) -> Result<Output, Box<dyn std::error::Error>> {
+    if let Some(log_level) = logs {
+        let level = match log_level.as_deref() {
+            Some("error") => Some(Level::ERROR),
+            Some("warn") => Some(Level::WARN),
+            Some("info") => Some(Level::INFO),
+            Some("debug") => Some(Level::DEBUG),
+            Some("trace") => Some(Level::TRACE),
+            Some(other) => {
+                return Err(format!("Invalid log level: {other}").into());
+            }
+            None => Some(Level::INFO), // Default to INFO if --logs is used without a level
+        };
+        Ok(init_logging(level))
+    } else {
+        Ok(Output::new())
+    }
+}
