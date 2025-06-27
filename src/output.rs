@@ -1,9 +1,35 @@
+#![allow(dead_code)]
+
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use terminal_size::{terminal_size, Width};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
+
+// Solarized Dark color scheme constants
+// Background tones
+const SOLARIZED_BASE03: Color = Color::Rgb(0, 43, 54); // darkest background
+const SOLARIZED_BASE02: Color = Color::Rgb(7, 54, 66); // dark background
+const SOLARIZED_BASE01: Color = Color::Rgb(88, 110, 117); // darker content
+const SOLARIZED_BASE00: Color = Color::Rgb(101, 123, 131); // dark content
+
+// Content tones
+const SOLARIZED_BASE0: Color = Color::Rgb(131, 148, 150); // light content
+const SOLARIZED_BASE1: Color = Color::Rgb(147, 161, 161); // lighter content
+const SOLARIZED_BASE2: Color = Color::Rgb(238, 232, 213); // light background
+const SOLARIZED_BASE3: Color = Color::Rgb(253, 246, 227); // lightest background
+
+// Accent colors
+const SOLARIZED_YELLOW: Color = Color::Rgb(181, 137, 0);
+const SOLARIZED_ORANGE: Color = Color::Rgb(203, 75, 22);
+const SOLARIZED_RED: Color = Color::Rgb(220, 50, 47);
+const SOLARIZED_MAGENTA: Color = Color::Rgb(211, 54, 130);
+const SOLARIZED_VIOLET: Color = Color::Rgb(108, 113, 196);
+const SOLARIZED_BLUE: Color = Color::Rgb(38, 139, 210);
+const SOLARIZED_CYAN: Color = Color::Rgb(42, 161, 152);
+const SOLARIZED_GREEN: Color = Color::Rgb(133, 153, 0);
 
 struct Inner {
     stdout: StandardStream,
@@ -32,11 +58,38 @@ impl Output {
 
     pub fn heading(&self, message: &str) -> io::Result<()> {
         let mut inner = self.inner.lock().unwrap();
-        inner
-            .stdout
-            .set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
-        writeln!(inner.stdout, "# {message}")?;
+
+        // Get terminal width, default to 80 if unable to detect
+        let width = if let Some((Width(w), _)) = terminal_size() {
+            w as usize
+        } else {
+            80
+        };
+
+        // Calculate padding needed
+        let message_with_spaces = format!(" {message} ");
+        let padding = width.saturating_sub(message_with_spaces.len());
+        let left_pad = padding / 2;
+        let right_pad = padding - left_pad;
+
+        // Create the full-width header
+        let header = format!(
+            "{}{}{}",
+            " ".repeat(left_pad),
+            message_with_spaces,
+            " ".repeat(right_pad)
+        );
+
+        // Set lighter content text on dark background for better readability
+        inner.stdout.set_color(
+            ColorSpec::new()
+                .set_fg(Some(SOLARIZED_BASE1))
+                .set_bg(Some(SOLARIZED_BASE02))
+                .set_bold(true),
+        )?;
+        write!(inner.stdout, "{header}")?;
         inner.stdout.reset()?;
+        writeln!(inner.stdout)?;
         inner.stdout.flush()
     }
 
@@ -44,8 +97,8 @@ impl Output {
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
-            .set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
-        writeln!(inner.stdout, "⚠ {message}")?;
+            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_YELLOW)))?;
+        writeln!(inner.stdout, "[WARNING] {message}")?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
@@ -54,8 +107,8 @@ impl Output {
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
-            .set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
-        writeln!(inner.stdout, "✗ {message}")?;
+            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_RED)).set_bold(true))?;
+        writeln!(inner.stdout, "[ERROR] {message}")?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
@@ -64,8 +117,8 @@ impl Output {
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
-            .set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
-        writeln!(inner.stdout, "✓ {message}")?;
+            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_GREEN)))?;
+        writeln!(inner.stdout, "[OK] {message}")?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
@@ -74,8 +127,8 @@ impl Output {
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
-            .set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-        writeln!(inner.stdout, "• {message}")?;
+            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_MAGENTA)))?;
+        writeln!(inner.stdout, "[DEBUG] {message}")?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
@@ -86,19 +139,19 @@ impl Output {
         let mut color_spec = ColorSpec::new();
         match level {
             Level::ERROR => {
-                color_spec.set_fg(Some(Color::Red)).set_bold(true);
+                color_spec.set_fg(Some(SOLARIZED_RED)).set_bold(true);
             }
             Level::WARN => {
-                color_spec.set_fg(Some(Color::Yellow));
+                color_spec.set_fg(Some(SOLARIZED_YELLOW));
             }
             Level::INFO => {
-                color_spec.set_dimmed(true); // Grey/dimmed white
+                color_spec.set_fg(Some(SOLARIZED_BASE0)); // Light content color
             }
             Level::DEBUG => {
-                color_spec.set_fg(Some(Color::Magenta));
+                color_spec.set_fg(Some(SOLARIZED_MAGENTA));
             }
             Level::TRACE => {
-                color_spec.set_fg(Some(Color::Blue)).set_dimmed(true);
+                color_spec.set_fg(Some(SOLARIZED_BASE01)); // Darker content for trace
             }
         };
 
@@ -148,7 +201,7 @@ struct MessageVisitor {
 impl tracing::field::Visit for MessageVisitor {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
-            self.message = format!("{:?}", value);
+            self.message = format!("{value:?}");
         }
     }
 

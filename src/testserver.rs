@@ -50,7 +50,7 @@ impl ServerConn for TestServerConn {
     async fn on_connect(&self, _context: &ServerCtx, remote_addr: &str) -> Result<()> {
         let _ = self
             .output
-            .success(&format!("client connected from {}", remote_addr));
+            .success(&format!("client connected from {remote_addr}"));
         Ok(())
     }
 
@@ -84,7 +84,7 @@ impl ServerConn for TestServerConn {
                 .with_tools(Some(true)),
             server_info,
             instructions: Some("This is a test server that logs all interactions. It only supports the 'echo' tool.".to_string()),
-            meta: None,
+            _meta: None,
         };
 
         let response = serde_json::to_string_pretty(&result).unwrap();
@@ -189,8 +189,7 @@ pub async fn run_test_server(stdio: bool, port: u16, trace: Option<Option<String
             Some("trace") => Some(Level::TRACE),
             Some(other) => {
                 return Err(Error::InvalidParams(format!(
-                    "Invalid trace level: {}",
-                    other
+                    "Invalid trace level: {other}"
                 )));
             }
             None => Some(Level::INFO), // Default to INFO if --trace is used without a level
