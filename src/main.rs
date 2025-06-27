@@ -109,7 +109,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Connect { target_args } => {
             let target = Target::parse(&target_args.target)?;
-            connect::connect_command(target).await?;
+            let output = output::Output::new();
+            connect::connect_command(target, output).await?;
         }
 
         Commands::Proxy { proxy_args } => {
