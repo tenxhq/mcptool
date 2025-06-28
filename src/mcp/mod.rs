@@ -150,7 +150,7 @@ pub async fn connect_with_auth(
     let oauth_client = Arc::new(oauth_client);
 
     // Create MCP client
-    let mut client = tenx_mcp::Client::new("mcptool", crate::VERSION)
+    let mut client = tenx_mcp::Client::new("mcptool", crate::core::VERSION)
         .with_capabilities(tenx_mcp::schema::ClientCapabilities::default());
 
     // Connect with OAuth

@@ -12,8 +12,6 @@ pub enum StorageError {
     Io(#[from] std::io::Error),
     #[error("Entry not found: {0}")]
     NotFound(String),
-    #[error("Failed to get config directory")]
-    ConfigDir,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

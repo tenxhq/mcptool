@@ -14,15 +14,6 @@ use clap::{Args, Parser, Subcommand};
 use core::MCPTool;
 use target::Target;
 
-pub const VERSION: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
-    "-",
-    env!("VERGEN_GIT_SHA"),
-    " (",
-    env!("VERGEN_BUILD_DATE"),
-    ")"
-);
-
 #[derive(Args)]
 struct TargetArgs {
     /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "https://host:port", "cmd://./server")
@@ -43,7 +34,7 @@ struct ProxyArgs {
 #[command(
     name = "mcptool",
     about = "A versatile command-line utility for connecting to, testing, and probing MCP servers",
-    version = VERSION,
+    version = core::VERSION,
 )]
 struct Cli {
     #[command(subcommand)]
@@ -118,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Version => {
-            println!("mcptool version {VERSION}");
+            println!("mcptool version {}", core::VERSION);
             println!(
                 "MCP protocol version: {}",
                 tenx_mcp::schema::LATEST_PROTOCOL_VERSION

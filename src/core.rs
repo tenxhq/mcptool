@@ -2,6 +2,15 @@ use crate::storage::{StorageError, TokenStorage};
 
 use std::path::PathBuf;
 
+pub const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "-",
+    env!("VERGEN_GIT_SHA"),
+    " (",
+    env!("VERGEN_BUILD_DATE"),
+    ")"
+);
+
 /// Central configuration and state management for mcptool
 pub struct MCPTool {
     /// Path to the configuration directory

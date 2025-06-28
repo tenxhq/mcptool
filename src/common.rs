@@ -1,4 +1,4 @@
-use crate::VERSION;
+use crate::core::VERSION;
 use crate::output::{Output, OutputLayer};
 use crate::target::Target;
 use tenx_mcp::{
