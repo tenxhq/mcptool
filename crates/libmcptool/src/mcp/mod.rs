@@ -5,10 +5,10 @@ use clap::{Args, Subcommand};
 use std::sync::Arc;
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 
-use crate::{ctx::Ctx, target::Target};
+use crate::{common::connect_to_server, ctx::Ctx, target::Target, utils::TimedFuture};
 
-pub use listtools::listtools_command;
-pub use ping::ping_command;
+pub use listtools::listtools;
+pub use ping::ping;
 
 #[derive(Args)]
 pub struct McpArgs {
@@ -47,12 +47,43 @@ pub async fn handle_mcp_command(
     match command {
         McpCommands::Ping { target, mcp_args } => {
             let target = resolve_target(ctx, target, &mcp_args.auth)?;
-            ping_command(ctx, target, mcp_args.auth).await
+            let (mut client, init_result) = get_client(ctx, &target, mcp_args.auth).await?;
+
+            ctx.output.text(format!("Pinging {target}..."))?;
+            ctx.output.text(format!(
+                "Server info: {} v{}",
+                init_result.server_info.name, init_result.server_info.version
+            ))?;
+
+            ping(&mut client, &ctx.output).await
         }
         McpCommands::Listtools { target, mcp_args } => {
             let target = resolve_target(ctx, target, &mcp_args.auth)?;
-            listtools_command(ctx, target, mcp_args.auth).await
+            let (mut client, init_result) = get_client(ctx, &target, mcp_args.auth).await?;
+
+            ctx.output.text(format!("Listing tools from {target}..."))?;
+            ctx.output.text(format!(
+                "Connected to: {} v{}\n",
+                init_result.server_info.name, init_result.server_info.version
+            ))?;
+
+            listtools(&mut client, &ctx.output).await
         }
+    }
+}
+
+async fn get_client(
+    ctx: &Ctx,
+    target: &Target,
+    auth: Option<String>,
+) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>>
+{
+    if let Some(auth_name) = auth {
+        connect_with_auth(ctx, target, &auth_name).await
+    } else {
+        connect_to_server(target)
+            .timed("Connected and initialized")
+            .await
     }
 }
 
@@ -71,10 +102,10 @@ fn resolve_target(
             let storage = ctx.storage()?;
             let auth_entry = storage.get_auth(auth)?;
 
-            println!(
+            ctx.output.text(format!(
                 "Using server URL from auth '{}': {}",
                 auth, auth_entry.server_url
-            );
+            ))?;
 
             Ok(Target::parse(&auth_entry.server_url)?)
         }

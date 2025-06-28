@@ -1,32 +1,7 @@
-use crate::{
-    common::connect_to_server, ctx::Ctx, mcp::connect_with_auth, target::Target, utils::TimedFuture,
-};
+use crate::utils::TimedFuture;
 use tenx_mcp::{Client, ServerAPI};
 
-pub async fn listtools_command(
-    ctx: &Ctx,
-    target: Target,
-    auth: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    ctx.output.text(format!("Listing tools from {target}..."))?;
-
-    let (mut client, init_result) = if let Some(auth_name) = auth {
-        connect_with_auth(ctx, &target, &auth_name).await?
-    } else {
-        connect_to_server(&target).await?
-    };
-
-    ctx.output.text(format!(
-        "Connected to: {} v{}\n",
-        init_result.server_info.name, init_result.server_info.version
-    ))?;
-
-    execute_listtools(&mut client, &ctx.output).await?;
-
-    Ok(())
-}
-
-async fn execute_listtools(
+pub async fn listtools(
     client: &mut Client<()>,
     output: &crate::output::Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -84,7 +59,8 @@ fn display_tools(
                             .input_schema
                             .required
                             .is_some_and(|list| list.contains(name));
-                        output.text(format!("      {name} - (required: {is_required})\n"))?;
+                        output.text(format!("      {name} - (required: {is_required})"))?;
+                        output.text("")?;
 
                         for line in rendered_schema.lines() {
                             output.text(format!("        {line}"))?;
