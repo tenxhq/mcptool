@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 
-use crate::{output::Output, storage::TokenStorage, Result};
+use crate::{
+    output::{LogLevel, Output},
+    storage::TokenStorage,
+    Result,
+};
 
 pub const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -21,7 +25,7 @@ pub struct Ctx {
 
 impl Ctx {
     /// Create a new MCPTool instance with the given configuration path
-    pub fn new(config_path: PathBuf, logs: Option<Option<String>>, json: bool) -> Result<Self> {
+    pub fn new(config_path: PathBuf, logs: Option<LogLevel>, json: bool) -> Result<Self> {
         let output = Output::new(false).with_json(json).with_logging(logs)?;
 
         Ok(Self {

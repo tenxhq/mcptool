@@ -2159,6 +2159,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "clap",
  "dirs",
  "oauth2",
  "open",

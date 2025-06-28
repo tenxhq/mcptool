@@ -9,7 +9,56 @@ use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use crate::{Error, Result};
+use crate::Result;
+
+/// Log level configuration for the application
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl LogLevel {
+    /// Convert to tracing Level
+    pub fn to_tracing_level(&self) -> Level {
+        match self {
+            LogLevel::Error => Level::ERROR,
+            LogLevel::Warn => Level::WARN,
+            LogLevel::Info => Level::INFO,
+            LogLevel::Debug => Level::DEBUG,
+            LogLevel::Trace => Level::TRACE,
+        }
+    }
+
+    /// Get the level as a string for env filter
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LogLevel::Error => "error",
+            LogLevel::Warn => "warn",
+            LogLevel::Info => "info",
+            LogLevel::Debug => "debug",
+            LogLevel::Trace => "trace",
+        }
+    }
+}
+
+impl std::str::FromStr for LogLevel {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "error" => Ok(LogLevel::Error),
+            "warn" => Ok(LogLevel::Warn),
+            "info" => Ok(LogLevel::Info),
+            "debug" => Ok(LogLevel::Debug),
+            "trace" => Ok(LogLevel::Trace),
+            _ => Err(format!("Invalid log level: {s}")),
+        }
+    }
+}
 
 // Solarized Dark color scheme constants
 // Background tones
@@ -63,25 +112,10 @@ impl Output {
         self
     }
 
-    /// Enable logging with an optional log level and return self.
-    ///
-    /// If `level` is None, defaults to INFO level.
-    /// Valid levels are: "error", "warn", "info", "debug", "trace"
-    pub fn with_logging(self, level: Option<Option<String>>) -> Result<Self> {
+    /// Enable logging with the specified log level and return self.
+    pub fn with_logging(self, level: Option<LogLevel>) -> Result<Self> {
         if let Some(log_level) = level {
-            let level = match log_level.as_deref() {
-                Some("error") => Level::ERROR,
-                Some("warn") => Level::WARN,
-                Some("info") => Level::INFO,
-                Some("debug") => Level::DEBUG,
-                Some("trace") => Level::TRACE,
-                Some(other) => {
-                    return Err(Error::Internal(format!("Invalid log level: {other}")));
-                }
-                None => Level::INFO, // Default to INFO if --logs is used without a level
-            };
-
-            let env_filter = EnvFilter::try_new(level.as_str()).unwrap_or_default();
+            let env_filter = EnvFilter::try_new(log_level.as_str()).unwrap_or_default();
             let output_layer = OutputLayer::new(self.clone());
 
             tracing_subscriber::registry()

@@ -13,3 +13,4 @@ pub mod utils;
 
 // Re-export commonly used error types
 pub use error::{Error, Result};
+pub use output::LogLevel;

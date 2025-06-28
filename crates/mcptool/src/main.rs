@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use libmcptool::{auth, connect, ctx, mcp, proxy, target::Target, testserver};
+use libmcptool::{auth, connect, ctx, mcp, proxy, target::Target, testserver, LogLevel};
 
 #[derive(Args)]
 struct TargetArgs {
@@ -120,6 +120,10 @@ struct Cli {
     #[arg(long, global = true)]
     json: bool,
 
+    /// Enable logging with specified level
+    #[arg(long, global = true, value_enum)]
+    logs: Option<LogLevel>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -141,10 +145,6 @@ enum Commands {
         /// Optional when using --auth, will use the stored server URL
         target: Option<String>,
 
-        /// Enable logging with optional level (error, warn, info, debug, trace)
-        #[arg(long, value_name = "LEVEL")]
-        logs: Option<Option<String>>,
-
         /// Use a stored authentication entry
         #[arg(long)]
         auth: Option<String>,
@@ -165,10 +165,6 @@ enum Commands {
         /// Port to listen on (for HTTP transport)
         #[arg(short, long, default_value = "8080")]
         port: u16,
-
-        /// Enable logging with optional level (error, warn, info, debug, trace)
-        #[arg(long, value_name = "LEVEL")]
-        logs: Option<Option<String>>,
     },
 
     /// Manage OAuth authentication entries
@@ -187,15 +183,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Failed to get config directory")?
         .join("mcptool");
 
-    // Determine if any command needs logging
-    let logs = match &cli.command {
-        Commands::Connect { logs, .. } => logs.clone(),
-        Commands::Testserver { logs, .. } => logs.clone(),
-        _ => None,
-    };
-
     // Create the MCPTool instance
-    let ctx = ctx::Ctx::new(config_path, logs, cli.json)?;
+    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json)?;
 
     match cli.command {
         Commands::Version => {
@@ -215,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
 
-        Commands::Connect { target, auth, .. } => {
+        Commands::Connect { target, auth } => {
             connect::connect_command(&ctx, target, auth).await?;
         }
 
@@ -224,7 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
 
-        Commands::Testserver { stdio, port, .. } => {
+        Commands::Testserver { stdio, port } => {
             testserver::run_test_server(&ctx, stdio, port).await?;
         }
 
