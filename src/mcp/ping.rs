@@ -1,31 +1,31 @@
-use crate::core::MCPTool;
 use crate::common::connect_to_server;
+use crate::ctx::Ctx;
 use crate::output::Output;
 use crate::target::Target;
 use crate::utils::TimedFuture;
 use tenx_mcp::{Client, ServerAPI};
 
 pub async fn ping_command(
+    ctx: &Ctx,
     target: Target,
     auth: Option<String>,
-    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     output.text(format!("Pinging {target}..."))?;
 
-    ping_once(&target, auth, mcptool, &output).await?;
+    ping_once(ctx, &target, auth, &output).await?;
 
     Ok(())
 }
 
 async fn ping_once(
+    ctx: &Ctx,
     target: &Target,
     auth: Option<String>,
-    mcptool: &MCPTool,
     output: &Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut client, init_result) = if let Some(auth_name) = auth {
-        super::connect_with_auth(target, &auth_name, mcptool, output).await?
+        super::connect_with_auth(ctx, target, &auth_name, output).await?
     } else {
         connect_to_server(target)
             .timed("Connected and initialized")

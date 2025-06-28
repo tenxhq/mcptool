@@ -3,7 +3,7 @@ mod list;
 mod remove;
 mod renew;
 
-use crate::core::MCPTool;
+use crate::ctx::Ctx;
 use crate::output::Output;
 use clap::Subcommand;
 
@@ -75,8 +75,8 @@ pub enum AuthCommands {
 }
 
 pub async fn handle_auth_command(
+    ctx: &Ctx,
     command: AuthCommands,
-    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
@@ -104,10 +104,10 @@ pub async fn handle_auth_command(
                 scopes,
                 show_redirect_url,
             };
-            add_command(args, mcptool, output).await
+            add_command(ctx, args, output).await
         }
-        AuthCommands::List => list_command(mcptool, output).await,
-        AuthCommands::Remove { name } => remove_command(name, mcptool, output).await,
-        AuthCommands::Renew { name } => renew_command(name, mcptool, output).await,
+        AuthCommands::List => list_command(ctx, output).await,
+        AuthCommands::Remove { name } => remove_command(ctx, name, output).await,
+        AuthCommands::Renew { name } => renew_command(ctx, name, output).await,
     }
 }

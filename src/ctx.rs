@@ -11,13 +11,13 @@ pub const VERSION: &str = concat!(
     ")"
 );
 
-/// Central configuration and state management for mcptool
-pub struct MCPTool {
+/// Central context passed to all operatoins
+pub struct Ctx {
     /// Path to the configuration directory
     pub config_path: PathBuf,
 }
 
-impl MCPTool {
+impl Ctx {
     /// Create a new MCPTool instance with the given configuration path
     pub fn new(config_path: PathBuf) -> Self {
         Self { config_path }

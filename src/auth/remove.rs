@@ -1,13 +1,13 @@
-use crate::core::MCPTool;
+use crate::ctx::Ctx;
 use crate::output::Output;
 use rustyline::DefaultEditor;
 
 pub async fn remove_command(
+    ctx: &Ctx,
     name: String,
-    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let storage = mcptool.storage()?;
+    let storage = ctx.storage()?;
 
     // Check if the entry exists
     if !storage.list_auth()?.contains(&name) {

@@ -1,8 +1,10 @@
-use crate::{core::MCPTool, output::Output, storage::StoredAuth};
-use rustyline::DefaultEditor;
 use std::time::{Duration, SystemTime};
+
+use rustyline::DefaultEditor;
 use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
+
+use crate::{ctx::Ctx, output::Output, storage::StoredAuth};
 
 pub struct AddCommandArgs {
     pub name: String,
@@ -18,15 +20,15 @@ pub struct AddCommandArgs {
 }
 
 pub async fn add_command(
+    ctx: &Ctx,
     args: AddCommandArgs,
-    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let name = args.name;
     output.heading(format!("Adding OAuth authentication entry: {name}"))?;
 
     // Check if entry already exists
-    let storage = mcptool.storage()?;
+    let storage = ctx.storage()?;
     if storage.list_auth()?.contains(&name) {
         return Err(format!("Authentication entry '{name}' already exists").into());
     }
@@ -157,10 +159,6 @@ pub async fn add_command(
             output.text(
                 "On macOS: You may need to allow the terminal app to control other applications.",
             )?;
-            #[cfg(target_os = "linux")]
-            output.text("On Linux: Make sure you have a default browser set (xdg-open).")?;
-            #[cfg(target_os = "windows")]
-            output.text("On Windows: Check your default browser settings.")?;
         }
     }
 

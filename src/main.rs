@@ -1,7 +1,7 @@
 mod auth;
 mod common;
 mod connect;
-mod core;
+mod ctx;
 mod mcp;
 mod output;
 mod proxy;
@@ -11,7 +11,7 @@ mod testserver;
 mod utils;
 
 use clap::{Args, Parser, Subcommand};
-use core::MCPTool;
+use ctx::Ctx;
 use target::Target;
 
 #[derive(Args)]
@@ -34,7 +34,7 @@ struct ProxyArgs {
 #[command(
     name = "mcptool",
     about = "A versatile command-line utility for connecting to, testing, and probing MCP servers",
-    version = core::VERSION,
+    version = ctx::VERSION,
 )]
 struct Cli {
     #[command(subcommand)]
@@ -105,11 +105,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("mcptool");
 
     // Create the MCPTool instance
-    let mcptool = MCPTool::new(config_path);
+    let ctx = Ctx::new(config_path);
 
     match cli.command {
         Commands::Version => {
-            println!("mcptool version {}", core::VERSION);
+            println!("mcptool version {}", ctx::VERSION);
             println!(
                 "MCP protocol version: {}",
                 tenx_mcp::schema::LATEST_PROTOCOL_VERSION
@@ -118,12 +118,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Mcp { command } => {
             let output = output::Output::new();
-            mcp::handle_mcp_command(command, &mcptool, output).await?;
+            mcp::handle_mcp_command(&ctx, command, output).await?;
         }
 
         Commands::Connect { target, logs, auth } => {
             let output = common::create_output_with_logging(logs)?;
-            connect::connect_command(target, auth, &mcptool, output).await?;
+            connect::connect_command(&ctx, target, auth, output).await?;
         }
 
         Commands::Proxy { proxy_args } => {
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Auth { command } => {
             let output = output::Output::new();
-            auth::handle_auth_command(command, &mcptool, output).await?;
+            auth::handle_auth_command(&ctx, command, output).await?;
         }
     }
 

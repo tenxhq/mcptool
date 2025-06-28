@@ -1,12 +1,9 @@
-use crate::core::MCPTool;
-use crate::output::Output;
 use std::time::SystemTime;
 
-pub async fn list_command(
-    mcptool: &MCPTool,
-    output: Output,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let storage = mcptool.storage()?;
+use crate::{ctx::Ctx, output::Output};
+
+pub async fn list_command(ctx: &Ctx, output: Output) -> Result<(), Box<dyn std::error::Error>> {
+    let storage = ctx.storage()?;
     let auths = storage.get_all_auth()?;
 
     if auths.is_empty() {
