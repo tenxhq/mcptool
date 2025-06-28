@@ -60,8 +60,9 @@ enum Commands {
 
     /// Connect to an MCP server and start an interactive REPL
     Connect {
-        #[command(flatten)]
-        target_args: TargetArgs,
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port")
+        /// Optional when using --auth, will use the stored server URL
+        target: Option<String>,
 
         /// Enable logging with optional level (error, warn, info, debug, trace)
         #[arg(long, value_name = "LEVEL")]
@@ -123,12 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             listtools::listtools_command(target).await?;
         }
 
-        Commands::Connect {
-            target_args,
-            logs,
-            auth,
-        } => {
-            let target = Target::parse(&target_args.target)?;
+        Commands::Connect { target, logs, auth } => {
             let output = common::create_output_with_logging(logs)?;
             connect::connect_command(target, auth, output).await?;
         }

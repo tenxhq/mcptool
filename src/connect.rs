@@ -11,16 +11,41 @@ use tenx_mcp::{
 };
 
 pub async fn connect_command(
-    target: Target,
+    target: Option<String>,
     auth_name: Option<String>,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    output.text(format!("Connecting to {target}..."))?;
+    // Determine the target to connect to
+    let (final_target, used_auth) = match (target, auth_name) {
+        (Some(t), auth) => {
+            // Target provided, parse it
+            let target = Target::parse(&t)?;
+            (target, auth)
+        }
+        (None, Some(auth)) => {
+            // No target but auth provided, get URL from auth
+            let storage = TokenStorage::new()?;
+            let auth_entry = storage.get_auth(&auth)?;
 
-    let (mut client, init_result) = if let Some(auth_name) = auth_name {
-        connect_with_auth(&target, &auth_name, &output).await?
+            output.text(format!(
+                "Using server URL from auth '{}': {}",
+                auth, auth_entry.server_url
+            ))?;
+
+            let target = Target::parse(&auth_entry.server_url)?;
+            (target, Some(auth))
+        }
+        (None, None) => {
+            return Err("No target specified. Either provide a target URL or use --auth".into());
+        }
+    };
+
+    output.text(format!("Connecting to {final_target}..."))?;
+
+    let (mut client, init_result) = if let Some(auth_name) = used_auth {
+        connect_with_auth(&final_target, &auth_name, &output).await?
     } else {
-        connect_to_server(&target).await?
+        connect_to_server(&final_target).await?
     };
 
     output.success(format!(
