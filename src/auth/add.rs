@@ -1,12 +1,19 @@
 use crate::output::Output;
 use crate::storage::{StoredAuth, TokenStorage};
 use rustyline::DefaultEditor;
-use secrecy::SecretString;
 use std::time::{Duration, SystemTime};
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
 
-pub async fn add_command(name: String, output: Output) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn add_command(
+    name: String,
+    server_url_arg: Option<String>,
+    auth_url_arg: Option<String>,
+    token_url_arg: Option<String>,
+    client_id_arg: Option<String>,
+    client_secret_arg: Option<String>,
+    output: Output,
+) -> Result<(), Box<dyn std::error::Error>> {
     output.heading(format!("Adding OAuth authentication entry: {}", name))?;
 
     // Check if entry already exists
@@ -15,24 +22,46 @@ pub async fn add_command(name: String, output: Output) -> Result<(), Box<dyn std
         return Err(format!("Authentication entry '{}' already exists", name).into());
     }
 
-    // Use rustyline for interactive prompts
+    // Use rustyline for interactive prompts only when needed
     let mut rl = DefaultEditor::new()?;
 
-    output.text("Enter the OAuth provider configuration:")?;
-    output.text("")?;
+    // Use provided arguments or prompt for missing values
+    let server_url = match server_url_arg {
+        Some(url) => url,
+        None => {
+            output.text("Enter the OAuth provider configuration:")?;
+            output.text("")?;
+            rl.readline("Server URL (e.g., https://api.example.com): ")?
+        }
+    };
 
-    // Collect OAuth configuration
-    let server_url = rl.readline("Server URL (e.g., https://api.example.com): ")?;
-    let auth_url = rl.readline("Authorization URL: ")?;
-    let token_url = rl.readline("Token URL: ")?;
-    let client_id = rl.readline("Client ID: ")?;
+    let auth_url = match auth_url_arg {
+        Some(url) => url,
+        None => rl.readline("Authorization URL: ")?,
+    };
+
+    let token_url = match token_url_arg {
+        Some(url) => url,
+        None => rl.readline("Token URL: ")?,
+    };
+
+    let client_id = match client_id_arg {
+        Some(id) => id,
+        None => rl.readline("Client ID: ")?,
+    };
 
     // Client secret is optional
-    let client_secret_input = rl.readline("Client Secret (optional, press Enter to skip): ")?;
-    let client_secret = if client_secret_input.trim().is_empty() {
-        None
-    } else {
-        Some(client_secret_input)
+    let client_secret = match client_secret_arg {
+        Some(secret) => Some(secret),
+        None => {
+            let client_secret_input =
+                rl.readline("Client Secret (optional, press Enter to skip): ")?;
+            if client_secret_input.trim().is_empty() {
+                None
+            } else {
+                Some(client_secret_input)
+            }
+        }
     };
 
     // Redirect URL with default
@@ -124,7 +153,7 @@ pub async fn add_command(name: String, output: Output) -> Result<(), Box<dyn std
         server_url,
         client_id,
         client_secret,
-        access_token: Some(SecretString::new(token.access_token.into())),
+        access_token: Some(token.access_token),
         refresh_token: token.refresh_token,
         expires_at,
         auth_url,

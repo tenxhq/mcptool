@@ -1,5 +1,4 @@
 use mcptool::storage::{StorageError, StoredAuth, TokenStorage};
-use secrecy::SecretString;
 use std::time::SystemTime;
 
 #[test]
@@ -18,7 +17,7 @@ fn test_auth_storage_lifecycle() {
         server_url: "https://test.example.com".to_string(),
         client_id: "test_client_id".to_string(),
         client_secret: Some("test_secret".to_string()),
-        access_token: Some(SecretString::new("test_access_token".to_string().into())),
+        access_token: Some("test_access_token".to_string()),
         refresh_token: Some("test_refresh_token".to_string()),
         expires_at: Some(SystemTime::now() + std::time::Duration::from_secs(3600)),
         auth_url: "https://test.example.com/auth".to_string(),

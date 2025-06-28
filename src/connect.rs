@@ -4,7 +4,6 @@ use crate::storage::TokenStorage;
 use crate::target::Target;
 use crate::utils::TimedFuture;
 use rustyline::DefaultEditor;
-use secrecy::ExposeSecret;
 use std::sync::Arc;
 use tenx_mcp::{
     Client, ServerAPI,
@@ -215,7 +214,7 @@ async fn connect_with_auth(
     // Set the stored tokens if available
     if let Some(access_token) = auth.access_token {
         let token = tenx_mcp::auth::OAuth2Token {
-            access_token: access_token.expose_secret().to_string(),
+            access_token,
             refresh_token: auth.refresh_token,
             expires_at: auth.expires_at.map(|system_time| {
                 // Convert SystemTime to Instant
