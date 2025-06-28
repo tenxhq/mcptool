@@ -55,7 +55,7 @@ fn test_auth_storage_lifecycle() {
     match storage.get_auth(&test_name) {
         Err(StorageError::NotFound(_)) => {} // Expected
         Ok(_) => panic!("Auth entry should have been removed"),
-        Err(e) => panic!("Unexpected error: {}", e),
+        Err(e) => panic!("Unexpected error: {e}"),
     }
 
     // Test list after removal
@@ -75,7 +75,7 @@ fn test_auth_not_found() {
     match storage.get_auth("nonexistent_auth_entry") {
         Err(StorageError::NotFound(_)) => {} // Expected
         Ok(_) => panic!("Should not find nonexistent auth"),
-        Err(e) => panic!("Unexpected error: {}", e),
+        Err(e) => panic!("Unexpected error: {e}"),
     }
 }
 
@@ -86,6 +86,6 @@ fn test_remove_nonexistent() {
     match storage.remove_auth("nonexistent_auth_entry") {
         Err(StorageError::NotFound(_)) => {} // Expected
         Ok(_) => panic!("Should not be able to remove nonexistent auth"),
-        Err(e) => panic!("Unexpected error: {}", e),
+        Err(e) => panic!("Unexpected error: {e}"),
     }
 }

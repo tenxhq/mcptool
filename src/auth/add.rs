@@ -5,32 +5,37 @@ use std::time::{Duration, SystemTime};
 use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
 
+pub struct AddCommandArgs {
+    pub name: String,
+    pub server_url: Option<String>,
+    pub auth_url: Option<String>,
+    pub token_url: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub redirect_url: Option<String>,
+    pub resource: Option<String>,
+    pub scopes: Option<String>,
+    pub show_redirect_url: bool,
+}
+
 pub async fn add_command(
-    name: String,
-    server_url_arg: Option<String>,
-    auth_url_arg: Option<String>,
-    token_url_arg: Option<String>,
-    client_id_arg: Option<String>,
-    client_secret_arg: Option<String>,
-    redirect_url_arg: Option<String>,
-    resource_arg: Option<String>,
-    scopes_arg: Option<String>,
-    show_redirect_url: bool,
+    args: AddCommandArgs,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    output.heading(format!("Adding OAuth authentication entry: {}", name))?;
+    let name = args.name;
+    output.heading(format!("Adding OAuth authentication entry: {name}"))?;
 
     // Check if entry already exists
     let storage = TokenStorage::new()?;
     if storage.list_auth()?.contains(&name) {
-        return Err(format!("Authentication entry '{}' already exists", name).into());
+        return Err(format!("Authentication entry '{name}' already exists").into());
     }
 
     // Use rustyline for interactive prompts only when needed
     let mut rl = DefaultEditor::new()?;
 
     // Use provided arguments or prompt for missing values
-    let server_url = match server_url_arg {
+    let server_url = match args.server_url {
         Some(url) => url,
         None => {
             output.text("Enter the OAuth provider configuration:")?;
@@ -39,23 +44,23 @@ pub async fn add_command(
         }
     };
 
-    let auth_url = match auth_url_arg {
+    let auth_url = match args.auth_url {
         Some(url) => url,
         None => rl.readline("Authorization URL: ")?,
     };
 
-    let token_url = match token_url_arg {
+    let token_url = match args.token_url {
         Some(url) => url,
         None => rl.readline("Token URL: ")?,
     };
 
-    let client_id = match client_id_arg {
+    let client_id = match args.client_id {
         Some(id) => id,
         None => rl.readline("Client ID: ")?,
     };
 
     // Client secret is optional
-    let client_secret = match client_secret_arg {
+    let client_secret = match args.client_secret {
         Some(secret) => Some(secret),
         None => {
             let client_secret_input =
@@ -69,7 +74,7 @@ pub async fn add_command(
     };
 
     // Redirect URL configuration
-    let (redirect_url, use_local_server) = match redirect_url_arg {
+    let (redirect_url, use_local_server) = match args.redirect_url {
         Some(url) => {
             // Use command line provided redirect URL
             (url, None)
@@ -79,22 +84,22 @@ pub async fn add_command(
             let callback_port = 8080;
             // Try to bind to port 8080 first (commonly registered), fallback to dynamic
             let actual_port =
-                match std::net::TcpListener::bind(format!("127.0.0.1:{}", callback_port)) {
+                match std::net::TcpListener::bind(format!("127.0.0.1:{callback_port}")) {
                     Ok(_) => callback_port,
                     Err(_) => find_available_port()?,
                 };
-            let url = format!("http://127.0.0.1:{}/callback", actual_port);
-            output.text(format!("Using redirect URL: {}", url))?;
+            let url = format!("http://127.0.0.1:{actual_port}/callback");
+            output.text(format!("Using redirect URL: {url}"))?;
             output.warn("Note: This URL must be registered in your OAuth application settings!")?;
             (url, Some(actual_port))
         }
     };
 
     // If user just wants to see the redirect URL, show it and exit
-    if show_redirect_url {
+    if args.show_redirect_url {
         output.text("")?;
         output.heading("OAuth Redirect URL Information")?;
-        output.text(format!("Redirect URL that will be used: {}", redirect_url))?;
+        output.text(format!("Redirect URL that will be used: {redirect_url}"))?;
         output.text("")?;
         output.text("Add this URL to your OAuth application settings.")?;
         output.text("Then run the command again without --show-redirect-url to complete setup.")?;
@@ -102,10 +107,10 @@ pub async fn add_command(
     }
 
     // Resource (audience) - use flag or default
-    let resource = resource_arg.unwrap_or_default();
+    let resource = args.resource.unwrap_or_default();
 
     // Scopes - use flag or default to empty
-    let scopes: Vec<String> = match scopes_arg {
+    let scopes: Vec<String> = match args.scopes {
         Some(s) => s.split(',').map(|s| s.trim().to_string()).collect(),
         None => vec![],
     };
@@ -144,7 +149,7 @@ pub async fn add_command(
             output.text("If the browser didn't open, copy the URL above and paste it manually.")?;
         }
         Err(e) => {
-            output.warn(format!("Could not open browser automatically: {}", e))?;
+            output.warn(format!("Could not open browser automatically: {e}"))?;
             output.text("Please copy the URL above and open it manually in your browser.")?;
 
             // Additional troubleshooting hints
@@ -168,8 +173,7 @@ pub async fn add_command(
 
         output.text("Waiting for authorization callback...")?;
         output.text(format!(
-            "Local callback server listening on port {}",
-            callback_port
+            "Local callback server listening on port {callback_port}"
         ))?;
         output.text("The browser will redirect back to this server after authorization.")?;
         output.text("Press Ctrl+C to cancel and use manual mode instead.")?;
@@ -204,7 +208,7 @@ pub async fn add_command(
     let token = match token_result {
         Ok(Ok(token)) => token,
         Ok(Err(e)) => {
-            let error_msg = format!("{}", e);
+            let error_msg = format!("{e}");
             if error_msg.contains("redirect_uri") || error_msg.contains("redirect URL") {
                 output.text("")?;
                 output.error("OAuth Error: Redirect URL not registered")?;
@@ -212,10 +216,10 @@ pub async fn add_command(
                 output.text("")?;
                 output.text("To fix this:")?;
                 output.text("1. Go to your OAuth application settings")?;
-                output.text(format!("2. Add this redirect URL: {}", redirect_url))?;
+                output.text(format!("2. Add this redirect URL: {redirect_url}"))?;
                 output.text("3. Run this command again")?;
                 output.text("")?;
-                return Err(format!("OAuth configuration error: {}", error_msg).into());
+                return Err(format!("OAuth configuration error: {error_msg}").into());
             } else if error_msg.contains("incorrect_client_credentials")
                 || error_msg.contains("client_id and/or client_secret")
             {
@@ -229,9 +233,9 @@ pub async fn add_command(
                 output.text("3. For GitHub: client_secret is required for OAuth Apps")?;
                 output.text("4. Check for trailing spaces or incorrect copy/paste")?;
                 output.text("")?;
-                return Err(format!("OAuth authentication error: {}", error_msg).into());
+                return Err(format!("OAuth authentication error: {error_msg}").into());
             }
-            return Err(format!("OAuth error: {}", error_msg).into());
+            return Err(format!("OAuth error: {error_msg}").into());
         }
         Err(_) => return Err("OAuth authorization timed out after 5 minutes".into()),
     };
@@ -262,13 +266,9 @@ pub async fn add_command(
     storage.store_auth(&stored_auth)?;
 
     output.text("")?;
-    output.success(format!(
-        "Authentication entry '{}' saved successfully!",
-        name
-    ))?;
+    output.success(format!("Authentication entry '{name}' saved successfully!"))?;
     output.text(format!(
-        "You can now use: mcptool connect --auth {} <target>",
-        name
+        "You can now use: mcptool connect --auth {name} <target>"
     ))?;
 
     Ok(())
@@ -304,7 +304,7 @@ async fn wait_for_manual_callback(
     let callback_url = rl.readline("Paste the full callback URL from your browser: ")?;
 
     // Extract the authorization code and state from the callback URL
-    let url = url::Url::parse(&callback_url).map_err(|e| format!("Invalid URL format: {}", e))?;
+    let url = url::Url::parse(&callback_url).map_err(|e| format!("Invalid URL format: {e}"))?;
 
     let mut code = None;
     let mut state = None;
@@ -325,11 +325,7 @@ async fn wait_for_manual_callback(
     if let Some(error_code) = error {
         let description =
             error_description.unwrap_or_else(|| "No description provided".to_string());
-        return Err(format!(
-            "OAuth authorization failed: {} - {}",
-            error_code, description
-        )
-        .into());
+        return Err(format!("OAuth authorization failed: {error_code} - {description}").into());
     }
 
     let code = code.ok_or("No authorization code found in callback URL")?;
@@ -344,7 +340,7 @@ async fn wait_for_manual_callback(
     let token = oauth_client
         .exchange_code(code, state)
         .await
-        .map_err(|e| format!("Token exchange failed: {}", e))?;
+        .map_err(|e| format!("Token exchange failed: {e}"))?;
 
     Ok(token)
 }

@@ -1,13 +1,15 @@
 mod add;
 mod list;
 mod remove;
+mod renew;
 
 use crate::output::Output;
 use clap::Subcommand;
 
-pub use add::add_command;
+pub use add::{AddCommandArgs, add_command};
 pub use list::list_command;
 pub use remove::remove_command;
+pub use renew::renew_command;
 
 #[derive(Subcommand)]
 pub enum AuthCommands {
@@ -63,6 +65,12 @@ pub enum AuthCommands {
         /// Name of the authentication entry to remove
         name: String,
     },
+
+    /// Renew the access token for an authentication entry using the refresh token
+    Renew {
+        /// Name of the authentication entry to renew
+        name: String,
+    },
 }
 
 pub async fn handle_auth_command(
@@ -82,7 +90,7 @@ pub async fn handle_auth_command(
             scopes,
             show_redirect_url,
         } => {
-            add_command(
+            let args = AddCommandArgs {
                 name,
                 server_url,
                 auth_url,
@@ -93,11 +101,11 @@ pub async fn handle_auth_command(
                 resource,
                 scopes,
                 show_redirect_url,
-                output,
-            )
-            .await
+            };
+            add_command(args, output).await
         }
         AuthCommands::List => list_command(output).await,
         AuthCommands::Remove { name } => remove_command(name, output).await,
+        AuthCommands::Renew { name } => renew_command(name, output).await,
     }
 }

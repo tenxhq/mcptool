@@ -10,14 +10,14 @@ pub async fn remove_command(
 
     // Check if the entry exists
     if !storage.list_auth()?.contains(&name) {
-        return Err(format!("Authentication entry '{}' not found", name).into());
+        return Err(format!("Authentication entry '{name}' not found").into());
     }
 
     // Get the auth details for confirmation
     let auth = storage.get_auth(&name)?;
 
     // Confirm removal
-    output.warn(format!("About to remove authentication entry '{}'", name))?;
+    output.warn(format!("About to remove authentication entry '{name}'"))?;
     output.text(format!("  Server: {}", auth.server_url))?;
     output.text(format!("  Client ID: {}", auth.client_id))?;
     output.text("")?;
@@ -34,8 +34,7 @@ pub async fn remove_command(
     storage.remove_auth(&name)?;
 
     output.success(format!(
-        "Authentication entry '{}' removed successfully.",
-        name
+        "Authentication entry '{name}' removed successfully."
     ))?;
 
     Ok(())

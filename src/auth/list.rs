@@ -68,9 +68,9 @@ pub async fn list_command(output: Output) -> Result<(), Box<dyn std::error::Erro
                     let minutes = (duration.as_secs() % 3600) / 60;
 
                     if hours > 0 {
-                        format!("Valid ({}h {}m)", hours, minutes)
+                        format!("Valid ({hours}h {minutes}m)")
                     } else {
-                        format!("Valid ({}m)", minutes)
+                        format!("Valid ({minutes}m)")
                     }
                 } else {
                     "Expired".to_string()
