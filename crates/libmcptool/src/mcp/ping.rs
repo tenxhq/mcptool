@@ -1,10 +1,7 @@
-use crate::utils::TimedFuture;
+use crate::{utils::TimedFuture, Result};
 use tenx_mcp::{Client, ServerAPI};
 
-pub async fn ping(
-    client: &mut Client<()>,
-    output: &crate::output::Output,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn ping(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
     client.ping().timed("Pinged").await?;
     output.ping()?;
     Ok(())

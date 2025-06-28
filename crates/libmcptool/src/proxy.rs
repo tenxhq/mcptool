@@ -8,13 +8,9 @@ use tokio::{
     process::Command,
 };
 
-use crate::target::Target;
+use crate::{target::Target, Error, Result};
 
-async fn log_traffic(
-    log_writer: &mut tokio::fs::File,
-    direction: &str,
-    data: &[u8],
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn log_traffic(log_writer: &mut tokio::fs::File, direction: &str, data: &[u8]) -> Result<()> {
     let timestamp = Utc::now().to_rfc3339();
     log_writer
         .write_all(format!("{timestamp}\n{direction}:\n").as_bytes())
@@ -29,7 +25,7 @@ async fn handle_client_to_server<W>(
     data: &[u8],
     target: &mut W,
     log_writer: &mut tokio::fs::File,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<()>
 where
     W: AsyncWriteExt + Unpin,
 {
@@ -43,7 +39,7 @@ async fn handle_server_to_client<W>(
     data: &[u8],
     writer: &mut W,
     log_writer: &mut tokio::fs::File,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<()>
 where
     W: AsyncWriteExt + Unpin,
 {
@@ -53,10 +49,7 @@ where
     Ok(())
 }
 
-pub async fn proxy_command(
-    target: Target,
-    log_file: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn proxy_command(target: Target, log_file: PathBuf) -> Result<()> {
     let mut log_writer = Some(
         OpenOptions::new()
             .create(true)
@@ -94,7 +87,9 @@ pub async fn proxy_command(
             .await?;
         }
         Target::Http { .. } | Target::Https { .. } => {
-            return Err("HTTP/HTTPS connections are not yet supported for proxy".into());
+            return Err(Error::Other(
+                "HTTP/HTTPS connections are not yet supported for proxy".to_string(),
+            ));
         }
     }
 
@@ -106,7 +101,7 @@ async fn proxy_streams<R, W, T>(
     mut writer: W,
     mut target: T,
     log_writer: &mut tokio::fs::File,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<()>
 where
     R: AsyncReadExt + Unpin,
     W: AsyncWriteExt + Unpin,
@@ -124,7 +119,7 @@ where
                         let data = &buf1[..n];
                         handle_client_to_server(data, &mut target, log_writer).await?;
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(Error::Io(e)),
                 }
             }
             result = target.read(&mut buf2) => {
@@ -134,7 +129,7 @@ where
                         let data = &buf2[..n];
                         handle_server_to_client(data, &mut writer, log_writer).await?;
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(Error::Io(e)),
                 }
             }
         }
@@ -149,7 +144,7 @@ async fn proxy_process_streams<R, W, S, T>(
     mut target_stdin: S,
     mut target_stdout: T,
     log_writer: &mut tokio::fs::File,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<()>
 where
     R: AsyncReadExt + Unpin,
     W: AsyncWriteExt + Unpin,
@@ -168,7 +163,7 @@ where
                         let data = &buf1[..n];
                         handle_client_to_server(data, &mut target_stdin, log_writer).await?;
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(Error::Io(e)),
                 }
             }
             result = target_stdout.read(&mut buf2) => {
@@ -178,7 +173,7 @@ where
                         let data = &buf2[..n];
                         handle_server_to_client(data, &mut writer, log_writer).await?;
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(Error::Io(e)),
                 }
             }
         }

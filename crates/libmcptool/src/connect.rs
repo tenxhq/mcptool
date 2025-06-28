@@ -1,13 +1,13 @@
 use crate::common::connect_to_server;
 use rustyline::DefaultEditor;
 
-use crate::{ctx::Ctx, mcp, target::Target};
+use crate::{ctx::Ctx, mcp, target::Target, Error, Result};
 
 pub async fn connect_command(
     ctx: &Ctx,
     target: Option<String>,
     auth_name: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Determine the target to connect to
     let (final_target, used_auth) = match (target, auth_name) {
         (Some(t), auth) => {
@@ -29,7 +29,9 @@ pub async fn connect_command(
             (target, Some(auth))
         }
         (None, None) => {
-            return Err("No target specified. Either provide a target URL or use --auth".into());
+            return Err(Error::Other(
+                "No target specified. Either provide a target URL or use --auth".to_string(),
+            ));
         }
     };
 

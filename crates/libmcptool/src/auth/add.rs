@@ -4,7 +4,7 @@ use rustyline::DefaultEditor;
 use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
 
-use crate::{ctx::Ctx, storage::StoredAuth};
+use crate::{ctx::Ctx, storage::StoredAuth, Error, Result};
 
 pub struct AddCommandArgs {
     pub name: String,
@@ -19,10 +19,7 @@ pub struct AddCommandArgs {
     pub show_redirect_url: bool,
 }
 
-pub async fn add_command(
-    ctx: &Ctx,
-    args: AddCommandArgs,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     let name = args.name;
     ctx.output
         .heading(format!("Adding OAuth authentication entry: {name}"))?;
@@ -30,7 +27,9 @@ pub async fn add_command(
     // Check if entry already exists
     let storage = ctx.storage()?;
     if storage.list_auth()?.contains(&name) {
-        return Err(format!("Authentication entry '{name}' already exists").into());
+        return Err(Error::Other(format!(
+            "Authentication entry '{name}' already exists"
+        )));
     }
 
     // Use rustyline for interactive prompts only when needed
@@ -237,7 +236,9 @@ pub async fn add_command(
                     .text(format!("2. Add this redirect URL: {redirect_url}"))?;
                 ctx.output.text("3. Run this command again")?;
                 ctx.output.text("")?;
-                return Err(format!("OAuth configuration error: {error_msg}").into());
+                return Err(Error::Other(format!(
+                    "OAuth configuration error: {error_msg}"
+                )));
             } else if error_msg.contains("incorrect_client_credentials")
                 || error_msg.contains("client_id and/or client_secret")
             {
@@ -257,11 +258,17 @@ pub async fn add_command(
                 ctx.output
                     .text("4. Check for trailing spaces or incorrect copy/paste")?;
                 ctx.output.text("")?;
-                return Err(format!("OAuth authentication error: {error_msg}").into());
+                return Err(Error::Other(format!(
+                    "OAuth authentication error: {error_msg}"
+                )));
             }
-            return Err(format!("OAuth error: {error_msg}").into());
+            return Err(Error::Other(format!("OAuth error: {error_msg}")));
         }
-        Err(_) => return Err("OAuth authorization timed out after 5 minutes".into()),
+        Err(_) => {
+            return Err(Error::Other(
+                "OAuth authorization timed out after 5 minutes".to_string(),
+            ))
+        }
     };
 
     ctx.output.success("Authorization successful!")?;
@@ -303,13 +310,15 @@ async fn wait_for_callback(
     oauth_client: &mut OAuth2Client,
     callback_server: OAuth2CallbackServer,
     expected_state: String,
-) -> Result<tenx_mcp::auth::OAuth2Token, Box<dyn std::error::Error>> {
+) -> Result<tenx_mcp::auth::OAuth2Token> {
     // Wait for the OAuth callback
     let (code, state) = callback_server.wait_for_callback().await?;
 
     // Verify the state parameter matches for CSRF protection
     if state != expected_state {
-        return Err("State parameter mismatch - possible CSRF attack".into());
+        return Err(Error::Other(
+            "State parameter mismatch - possible CSRF attack".to_string(),
+        ));
     }
 
     // Exchange the authorization code for an access token
@@ -322,14 +331,15 @@ async fn wait_for_manual_callback(
     oauth_client: &mut OAuth2Client,
     expected_state: String,
     output: &crate::output::Output,
-) -> Result<tenx_mcp::auth::OAuth2Token, Box<dyn std::error::Error>> {
+) -> Result<tenx_mcp::auth::OAuth2Token> {
     let mut rl = DefaultEditor::new()?;
 
     output.text("")?;
     let callback_url = rl.readline("Paste the full callback URL from your browser: ")?;
 
     // Extract the authorization code and state from the callback URL
-    let url = url::Url::parse(&callback_url).map_err(|e| format!("Invalid URL format: {e}"))?;
+    let url = url::Url::parse(&callback_url)
+        .map_err(|e| Error::Other(format!("Invalid URL format: {e}")))?;
 
     let mut code = None;
     let mut state = None;
@@ -350,27 +360,35 @@ async fn wait_for_manual_callback(
     if let Some(error_code) = error {
         let description =
             error_description.unwrap_or_else(|| "No description provided".to_string());
-        return Err(format!("OAuth authorization failed: {error_code} - {description}").into());
+        return Err(Error::Other(format!(
+            "OAuth authorization failed: {error_code} - {description}"
+        )));
     }
 
-    let code = code.ok_or("No authorization code found in callback URL")?;
-    let state = state.ok_or("No state parameter found in callback URL")?;
+    let code = code.ok_or(Error::Other(
+        "No authorization code found in callback URL".to_string(),
+    ))?;
+    let state = state.ok_or(Error::Other(
+        "No state parameter found in callback URL".to_string(),
+    ))?;
 
     // Verify the state parameter matches for CSRF protection
     if state != expected_state {
-        return Err("State parameter mismatch - possible CSRF attack".into());
+        return Err(Error::Other(
+            "State parameter mismatch - possible CSRF attack".to_string(),
+        ));
     }
 
     // Exchange the authorization code for an access token
     let token = oauth_client
         .exchange_code(code, state)
         .await
-        .map_err(|e| format!("Token exchange failed: {e}"))?;
+        .map_err(|e| Error::Other(format!("Token exchange failed: {e}")))?;
 
     Ok(token)
 }
 
-fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
+fn find_available_port() -> Result<u16> {
     use std::net::TcpListener;
 
     let listener = TcpListener::bind("127.0.0.1:0")?;

@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{
-    output::Output,
-    storage::{StorageError, TokenStorage},
-};
+use crate::{output::Output, storage::TokenStorage, Result};
 
 pub const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -24,11 +21,7 @@ pub struct Ctx {
 
 impl Ctx {
     /// Create a new MCPTool instance with the given configuration path
-    pub fn new(
-        config_path: PathBuf,
-        logs: Option<Option<String>>,
-        json: bool,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(config_path: PathBuf, logs: Option<Option<String>>, json: bool) -> Result<Self> {
         let output = Output::new(false).with_json(json).with_logging(logs)?;
 
         Ok(Self {
@@ -38,7 +31,7 @@ impl Ctx {
     }
 
     /// Create a TokenStorage instance using the configured path
-    pub fn storage(&self) -> Result<TokenStorage, StorageError> {
-        TokenStorage::new(self.config_path.clone())
+    pub fn storage(&self) -> Result<TokenStorage> {
+        Ok(TokenStorage::new(self.config_path.clone())?)
     }
 }

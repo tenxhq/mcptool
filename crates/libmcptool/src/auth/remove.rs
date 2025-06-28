@@ -1,12 +1,14 @@
-use crate::ctx::Ctx;
+use crate::{ctx::Ctx, Error, Result};
 use rustyline::DefaultEditor;
 
-pub async fn remove_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn remove_command(ctx: &Ctx, name: String) -> Result<()> {
     let storage = ctx.storage()?;
 
     // Check if the entry exists
     if !storage.list_auth()?.contains(&name) {
-        return Err(format!("Authentication entry '{name}' not found").into());
+        return Err(Error::Other(format!(
+            "Authentication entry '{name}' not found"
+        )));
     }
 
     // Get the auth details for confirmation

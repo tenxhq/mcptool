@@ -1,8 +1,8 @@
 use std::time::SystemTime;
 
-use crate::ctx::Ctx;
+use crate::{ctx::Ctx, Result};
 
-pub async fn list_command(ctx: &Ctx) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn list_command(ctx: &Ctx) -> Result<()> {
     let storage = ctx.storage()?;
     let auths = storage.get_all_auth()?;
 

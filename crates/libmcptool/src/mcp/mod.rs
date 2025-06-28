@@ -4,7 +4,9 @@ mod ping;
 use std::sync::Arc;
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 
-use crate::{common::connect_to_server, ctx::Ctx, target::Target, utils::TimedFuture};
+use crate::{
+    common::connect_to_server, ctx::Ctx, target::Target, utils::TimedFuture, Error, Result,
+};
 
 pub use listtools::listtools;
 pub use ping::ping;
@@ -13,7 +15,7 @@ pub async fn handle_ping_command(
     ctx: &Ctx,
     target: Option<String>,
     auth: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let target = resolve_target(ctx, target, &auth)?;
     let (mut client, init_result) = get_client(ctx, &target, auth).await?;
 
@@ -30,7 +32,7 @@ pub async fn handle_listtools_command(
     ctx: &Ctx,
     target: Option<String>,
     auth: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let target = resolve_target(ctx, target, &auth)?;
     let (mut client, init_result) = get_client(ctx, &target, auth).await?;
 
@@ -47,8 +49,7 @@ async fn get_client(
     ctx: &Ctx,
     target: &Target,
     auth: Option<String>,
-) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>>
-{
+) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult)> {
     if let Some(auth_name) = auth {
         connect_with_auth(ctx, target, &auth_name).await
     } else {
@@ -58,11 +59,7 @@ async fn get_client(
     }
 }
 
-fn resolve_target(
-    ctx: &Ctx,
-    target: Option<String>,
-    auth_name: &Option<String>,
-) -> Result<Target, Box<dyn std::error::Error>> {
+fn resolve_target(ctx: &Ctx, target: Option<String>, auth_name: &Option<String>) -> Result<Target> {
     match (target, auth_name) {
         (Some(t), _) => {
             // Target provided, parse it
@@ -80,9 +77,9 @@ fn resolve_target(
 
             Ok(Target::parse(&auth_entry.server_url)?)
         }
-        (None, None) => {
-            Err("No target specified. Either provide a target URL or use --auth".into())
-        }
+        (None, None) => Err(Error::Other(
+            "No target specified. Either provide a target URL or use --auth".to_string(),
+        )),
     }
 }
 
@@ -90,12 +87,15 @@ pub async fn connect_with_auth(
     ctx: &Ctx,
     target: &Target,
     auth_name: &str,
-) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>>
-{
+) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult)> {
     // Only HTTP/HTTPS targets support OAuth
     match target {
         Target::Http { .. } | Target::Https { .. } => {}
-        _ => return Err("OAuth authentication is only supported for HTTP/HTTPS targets".into()),
+        _ => {
+            return Err(Error::Other(
+                "OAuth authentication is only supported for HTTP/HTTPS targets".to_string(),
+            ))
+        }
     }
 
     // Load auth credentials
@@ -110,9 +110,10 @@ pub async fn connect_with_auth(
         if expires_at <= std::time::SystemTime::now() {
             ctx.output
                 .warn("Access token has expired. Token refresh not yet implemented.")?;
-            return Err(
-                "Access token has expired. Please re-authenticate with 'mcptool auth add'".into(),
-            );
+            return Err(Error::Other(
+                "Access token has expired. Please re-authenticate with 'mcptool auth add'"
+                    .to_string(),
+            ));
         }
     }
 
@@ -161,14 +162,22 @@ pub async fn connect_with_auth(
             client
                 .connect_http_with_oauth(&url, oauth_client)
                 .await
-                .map_err(|e| format!("Failed to connect to HTTP endpoint {url} with OAuth: {e}"))?
+                .map_err(|e| {
+                    Error::Other(format!(
+                        "Failed to connect to HTTP endpoint {url} with OAuth: {e}"
+                    ))
+                })?
         }
         Target::Https { host, port } => {
             let url = format!("https://{host}:{port}");
             client
                 .connect_http_with_oauth(&url, oauth_client)
                 .await
-                .map_err(|e| format!("Failed to connect to HTTPS endpoint {url} with OAuth: {e}"))?
+                .map_err(|e| {
+                    Error::Other(format!(
+                        "Failed to connect to HTTPS endpoint {url} with OAuth: {e}"
+                    ))
+                })?
         }
         _ => unreachable!(), // We checked this above
     };

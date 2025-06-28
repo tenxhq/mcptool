@@ -5,9 +5,9 @@ use oauth2::{
     TokenResponse, TokenUrl,
 };
 
-use crate::ctx::Ctx;
+use crate::{ctx::Ctx, Error, Result};
 
-pub async fn renew_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn renew_command(ctx: &Ctx, name: String) -> Result<()> {
     ctx.output
         .heading(format!("Renewing OAuth authentication: {name}"))?;
 
@@ -15,10 +15,9 @@ pub async fn renew_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::e
     let mut auth = storage.get_auth(&name)?;
 
     // Check if we have a refresh token
-    let refresh_token = auth
-        .refresh_token
-        .as_ref()
-        .ok_or("No refresh token available for this authentication entry")?;
+    let refresh_token = auth.refresh_token.as_ref().ok_or(Error::Other(
+        "No refresh token available for this authentication entry".to_string(),
+    ))?;
 
     ctx.output.text("Current token status:")?;
     match &auth.expires_at {
@@ -45,10 +44,12 @@ pub async fn renew_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::e
     // Create OAuth client directly using oauth2 crate
     let mut client = BasicClient::new(ClientId::new(auth.client_id.clone()))
         .set_auth_uri(
-            AuthUrl::new(auth.auth_url.clone()).map_err(|e| format!("Invalid auth URL: {e}"))?,
+            AuthUrl::new(auth.auth_url.clone())
+                .map_err(|e| Error::Other(format!("Invalid auth URL: {e}")))?,
         )
         .set_token_uri(
-            TokenUrl::new(auth.token_url.clone()).map_err(|e| format!("Invalid token URL: {e}"))?,
+            TokenUrl::new(auth.token_url.clone())
+                .map_err(|e| Error::Other(format!("Invalid token URL: {e}")))?,
         );
 
     if let Some(client_secret) = auth.client_secret.as_ref() {
@@ -61,13 +62,15 @@ pub async fn renew_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::e
         .exchange_refresh_token(&refresh_token_obj)
         .request_async(&reqwest::Client::new())
         .await
-        .map_err(|e| match e {
-            RequestTokenError::ServerResponse(response) => {
-                format!("Server error: {:?}", response.error())
-            }
-            RequestTokenError::Request(e) => format!("Request error: {e}"),
-            RequestTokenError::Parse(e, _) => format!("Parse error: {e}"),
-            RequestTokenError::Other(e) => format!("Other error: {e}"),
+        .map_err(|e| {
+            Error::Other(match e {
+                RequestTokenError::ServerResponse(response) => {
+                    format!("Server error: {:?}", response.error())
+                }
+                RequestTokenError::Request(e) => format!("Request error: {e}"),
+                RequestTokenError::Parse(e, _) => format!("Parse error: {e}"),
+                RequestTokenError::Other(e) => format!("Other error: {e}"),
+            })
         })?;
 
     // Update the stored auth with new token information

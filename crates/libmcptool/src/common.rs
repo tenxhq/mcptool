@@ -1,23 +1,20 @@
 use crate::ctx::VERSION;
-use crate::target::Target;
+use crate::{target::Target, Error, Result};
 use tenx_mcp::{
     schema::{ClientCapabilities, InitializeResult},
     Client,
 };
 
-pub async fn connect_to_server(
-    target: &Target,
-) -> Result<(Client<()>, InitializeResult), Box<dyn std::error::Error>> {
+pub async fn connect_to_server(target: &Target) -> Result<(Client<()>, InitializeResult)> {
     let mut client =
         Client::new("mcptool", VERSION).with_capabilities(ClientCapabilities::default());
 
     let init_result = match target {
         Target::Tcp { host, port } => {
             let addr = format!("{host}:{port}");
-            client
-                .connect_tcp(&addr)
-                .await
-                .map_err(|e| format!("Failed to connect to TCP address {addr}: {e}"))?
+            client.connect_tcp(&addr).await.map_err(|e| {
+                Error::Other(format!("Failed to connect to TCP address {addr}: {e}"))
+            })?
         }
         Target::Stdio { command, args } => {
             println!(
@@ -32,27 +29,25 @@ pub async fn connect_to_server(
             let _child = client
                 .connect_process(cmd)
                 .await
-                .map_err(|e| format!("Failed to spawn MCP server process: {e}"))?;
+                .map_err(|e| Error::Other(format!("Failed to spawn MCP server process: {e}")))?;
 
             // The new API handles initialization automatically
             client
                 .init()
                 .await
-                .map_err(|e| format!("Failed to initialize MCP client: {e}"))?
+                .map_err(|e| Error::Other(format!("Failed to initialize MCP client: {e}")))?
         }
         Target::Http { host, port } => {
             let url = format!("http://{host}:{port}");
-            client
-                .connect_http(&url)
-                .await
-                .map_err(|e| format!("Failed to connect to HTTP endpoint {url}: {e}"))?
+            client.connect_http(&url).await.map_err(|e| {
+                Error::Other(format!("Failed to connect to HTTP endpoint {url}: {e}"))
+            })?
         }
         Target::Https { host, port } => {
             let url = format!("https://{host}:{port}");
-            client
-                .connect_http(&url)
-                .await
-                .map_err(|e| format!("Failed to connect to HTTPS endpoint {url}: {e}"))?
+            client.connect_http(&url).await.map_err(|e| {
+                Error::Other(format!("Failed to connect to HTTPS endpoint {url}: {e}"))
+            })?
         }
     };
 

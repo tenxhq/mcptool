@@ -9,6 +9,8 @@ use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+use crate::{Error, Result};
+
 // Solarized Dark color scheme constants
 // Background tones
 const SOLARIZED_BASE03: Color = Color::Rgb(0, 43, 54); // darkest background
@@ -65,10 +67,7 @@ impl Output {
     ///
     /// If `level` is None, defaults to INFO level.
     /// Valid levels are: "error", "warn", "info", "debug", "trace"
-    pub fn with_logging(
-        self,
-        level: Option<Option<String>>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn with_logging(self, level: Option<Option<String>>) -> Result<Self> {
         if let Some(log_level) = level {
             let level = match log_level.as_deref() {
                 Some("error") => Level::ERROR,
@@ -77,7 +76,7 @@ impl Output {
                 Some("debug") => Level::DEBUG,
                 Some("trace") => Level::TRACE,
                 Some(other) => {
-                    return Err(format!("Invalid log level: {other}").into());
+                    return Err(Error::Internal(format!("Invalid log level: {other}")));
                 }
                 None => Level::INFO, // Default to INFO if --logs is used without a level
             };
@@ -222,7 +221,7 @@ impl Output {
     pub fn list_tools_result(
         &self,
         tools_result: &tenx_mcp::schema::ListToolsResult,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         if self.json {
             // Output as JSON
             let json = serde_json::to_string_pretty(tools_result)?;
@@ -267,8 +266,7 @@ impl Output {
                     match &tool.input_schema.properties {
                         Some(properties) => {
                             for (name, schema) in properties {
-                                let rendered_schema = serde_json::to_string_pretty(schema)
-                                    .map_err(|e| format!("Failed to serialize schema: {e}"))?;
+                                let rendered_schema = serde_json::to_string_pretty(schema)?;
                                 let is_required = &tool
                                     .clone()
                                     .input_schema
@@ -293,7 +291,7 @@ impl Output {
         Ok(())
     }
 
-    pub fn ping(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn ping(&self) -> Result<()> {
         if self.json {
             self.text("{}")?;
         } else {
