@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod client;
 pub mod common;
 pub mod connect;
 pub mod ctx;

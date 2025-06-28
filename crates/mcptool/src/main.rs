@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use libmcptool::{auth, connect, ctx, mcp, proxy, target::Target, testserver, LogLevel};
+use libmcptool::{auth, client, connect, ctx, mcp, proxy, target::Target, testserver, LogLevel};
 
 #[derive(Args)]
 struct TargetArgs {
@@ -197,10 +197,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Mcp { command } => match command {
             McpCommands::Ping { target, mcp_args } => {
-                mcp::handle_ping_command(&ctx, target, mcp_args.auth).await?;
+                let target = client::resolve_target(&ctx, target, &mcp_args.auth)?;
+                let (mut client, init_result) =
+                    client::get_client(&ctx, &target, mcp_args.auth).await?;
+
+                ctx.output.text(format!("Pinging {target}..."))?;
+                ctx.output.text(format!(
+                    "Server info: {} v{}",
+                    init_result.server_info.name, init_result.server_info.version
+                ))?;
+
+                mcp::ping(&mut client, &ctx.output).await?;
             }
             McpCommands::Listtools { target, mcp_args } => {
-                mcp::handle_listtools_command(&ctx, target, mcp_args.auth).await?;
+                let target = client::resolve_target(&ctx, target, &mcp_args.auth)?;
+                let (mut client, init_result) =
+                    client::get_client(&ctx, &target, mcp_args.auth).await?;
+
+                ctx.output.text(format!("Listing tools from {target}..."))?;
+                ctx.output.text(format!(
+                    "Connected to: {} v{}\n",
+                    init_result.server_info.name, init_result.server_info.version
+                ))?;
+
+                mcp::listtools(&mut client, &ctx.output).await?;
             }
         },
 

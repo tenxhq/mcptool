@@ -1,7 +1,7 @@
 use crate::common::connect_to_server;
 use rustyline::DefaultEditor;
 
-use crate::{ctx::Ctx, mcp, target::Target, Error, Result};
+use crate::{client, ctx::Ctx, mcp, target::Target, Error, Result};
 
 pub async fn connect_command(
     ctx: &Ctx,
@@ -39,7 +39,7 @@ pub async fn connect_command(
         .text(format!("Connecting to {final_target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = used_auth {
-        mcp::connect_with_auth(ctx, &final_target, &auth_name).await?
+        client::connect_with_auth(ctx, &final_target, &auth_name).await?
     } else {
         connect_to_server(&final_target).await?
     };
