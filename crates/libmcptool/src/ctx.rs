@@ -30,8 +30,9 @@ impl Ctx {
     pub fn new(
         config_path: PathBuf,
         logs: Option<Option<String>>,
+        json: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let output = create_output_with_logging(logs)?;
+        let output = create_output_with_logging(logs, json)?;
         Ok(Self {
             config_path,
             output,
@@ -46,8 +47,9 @@ impl Ctx {
 
 pub fn create_output_with_logging(
     logs: Option<Option<String>>,
+    json: bool,
 ) -> Result<Output, Box<dyn std::error::Error>> {
-    let output = Output::new();
+    let output = Output::new(json);
 
     if let Some(log_level) = logs {
         let level = match log_level.as_deref() {

@@ -6,6 +6,6 @@ pub async fn ping(
     output: &crate::output::Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     client.ping().timed("Pinged").await?;
-    output.success("Ping successful!")?;
+    output.ping()?;
     Ok(())
 }

@@ -33,6 +33,7 @@ const SOLARIZED_GREEN: Color = Color::Rgb(133, 153, 0);
 
 struct Inner {
     stdout: StandardStream,
+    json: bool,
 }
 
 #[derive(Clone)]
@@ -41,10 +42,11 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn new() -> Self {
+    pub fn new(json: bool) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 stdout: StandardStream::stdout(ColorChoice::Auto),
+                json,
             })),
         }
     }
@@ -52,14 +54,25 @@ impl Output {
     pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
         let mut inner = self.inner.lock().unwrap();
-        inner.stdout.reset()?;
-        writeln!(inner.stdout, "{message}")?;
+
+        // In JSON mode, only output raw text without formatting
+        if inner.json {
+            writeln!(inner.stdout, "{message}")?;
+        } else {
+            inner.stdout.reset()?;
+            writeln!(inner.stdout, "{message}")?;
+        }
         inner.stdout.flush()
     }
 
     pub fn heading(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
         let mut inner = self.inner.lock().unwrap();
+
+        // Skip formatting in JSON mode
+        if inner.json {
+            return Ok(());
+        }
 
         // Get terminal width, default to 80 if unable to detect
         let width = if let Some((Width(w), _)) = terminal_size() {
@@ -98,6 +111,12 @@ impl Output {
     pub fn warn(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
         let mut inner = self.inner.lock().unwrap();
+
+        // Skip formatting in JSON mode
+        if inner.json {
+            return Ok(());
+        }
+
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_YELLOW)))?;
@@ -109,6 +128,12 @@ impl Output {
     pub fn error(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
         let mut inner = self.inner.lock().unwrap();
+
+        // Skip formatting in JSON mode
+        if inner.json {
+            return Ok(());
+        }
+
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_RED)).set_bold(true))?;
@@ -120,6 +145,12 @@ impl Output {
     pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
         let mut inner = self.inner.lock().unwrap();
+
+        // Skip formatting in JSON mode
+        if inner.json {
+            return Ok(());
+        }
+
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_GREEN)))?;
@@ -167,11 +198,103 @@ impl Output {
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
+
+    pub fn list_tools_result(
+        &self,
+        tools_result: &tenx_mcp::schema::ListToolsResult,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let inner = self.inner.lock().unwrap();
+
+        if inner.json {
+            // Output as JSON
+            let json = serde_json::to_string_pretty(tools_result)?;
+            drop(inner); // Release lock before calling self.text
+            self.text(json)?;
+        } else {
+            drop(inner); // Release lock before calling other methods
+                         // Output as formatted text
+            if tools_result.tools.is_empty() {
+                self.text("No tools available from this server.")?;
+            } else {
+                self.heading(format!("Available tools ({}):", tools_result.tools.len()))?;
+                self.text("")?;
+                for tool in &tools_result.tools {
+                    self.text(format!("  - {}", tool.name))?;
+
+                    self.text("")?;
+                    self.text("    Description:")?;
+                    self.text("")?;
+                    match &tool.description {
+                        Some(description) => {
+                            for line in description.lines() {
+                                self.text(format!("      {line}"))?;
+                            }
+                        }
+                        None => self.text("      No description available")?,
+                    }
+
+                    self.text("")?;
+                    self.text("    Annotations:")?;
+                    self.text("")?;
+                    match &tool.annotations {
+                        Some(annotations) => {
+                            self.text(format!("      {:?}", annotations.title))?;
+                        }
+                        None => self.text("      No annotations available")?,
+                    }
+
+                    self.text("")?;
+                    self.text("    Input arguments:")?;
+                    self.text("")?;
+
+                    // TODO Show required inputs first?
+                    match &tool.input_schema.properties {
+                        Some(properties) => {
+                            for (name, schema) in properties {
+                                let rendered_schema = serde_json::to_string_pretty(schema)
+                                    .map_err(|e| format!("Failed to serialize schema: {e}"))?;
+                                let is_required = &tool
+                                    .clone()
+                                    .input_schema
+                                    .required
+                                    .is_some_and(|list| list.contains(name));
+                                self.text(format!("      {name} - (required: {is_required})"))?;
+                                self.text("")?;
+
+                                for line in rendered_schema.lines() {
+                                    self.text(format!("        {line}"))?;
+                                }
+                                self.text("")?;
+                            }
+                        }
+                        None => self.text("      No input schema available")?,
+                    }
+
+                    self.text("")?; // Extra blank line between tools
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn ping(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let inner = self.inner.lock().unwrap();
+
+        if inner.json {
+            // Output empty JSON object
+            drop(inner); // Release lock before calling self.text
+            self.text("{}")?;
+        } else {
+            drop(inner); // Release lock before calling self.success
+            self.success("Ping successful!")?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for Output {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }
 

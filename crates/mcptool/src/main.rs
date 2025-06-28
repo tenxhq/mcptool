@@ -116,6 +116,10 @@ enum AuthCommands {
     version = ctx::VERSION,
 )]
 struct Cli {
+    /// Output results in JSON format
+    #[arg(long, global = true)]
+    json: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -191,7 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create the MCPTool instance
-    let ctx = ctx::Ctx::new(config_path, logs)?;
+    let ctx = ctx::Ctx::new(config_path, logs, cli.json)?;
 
     match cli.command {
         Commands::Version => {

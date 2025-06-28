@@ -2,8 +2,8 @@
 
 ## Model guidance
 
-- Prefer to write durable integration tests over running examples or creating disposable test scripts.
-    - Integration tests go in ./tests.
+- Prefer to write durable integration tests over running commands/examples or
+  creating disposable test scripts.
 - This is a free-standing tool, so don't create examples in an `examples/` directory.
 
 
