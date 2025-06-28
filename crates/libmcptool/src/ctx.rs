@@ -1,10 +1,7 @@
 use std::path::PathBuf;
 
-use tracing::Level;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-
 use crate::{
-    output::{Output, OutputLayer},
+    output::Output,
     storage::{StorageError, TokenStorage},
 };
 
@@ -32,7 +29,8 @@ impl Ctx {
         logs: Option<Option<String>>,
         json: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let output = create_output_with_logging(logs, json)?;
+        let output = Output::new(false).with_json(json).with_logging(logs)?;
+
         Ok(Self {
             config_path,
             output,
@@ -43,35 +41,4 @@ impl Ctx {
     pub fn storage(&self) -> Result<TokenStorage, StorageError> {
         TokenStorage::new(self.config_path.clone())
     }
-}
-
-pub fn create_output_with_logging(
-    logs: Option<Option<String>>,
-    json: bool,
-) -> Result<Output, Box<dyn std::error::Error>> {
-    let output = Output::new(json);
-
-    if let Some(log_level) = logs {
-        let level = match log_level.as_deref() {
-            Some("error") => Level::ERROR,
-            Some("warn") => Level::WARN,
-            Some("info") => Level::INFO,
-            Some("debug") => Level::DEBUG,
-            Some("trace") => Level::TRACE,
-            Some(other) => {
-                return Err(format!("Invalid log level: {other}").into());
-            }
-            None => Level::INFO, // Default to INFO if --logs is used without a level
-        };
-
-        let env_filter = EnvFilter::try_new(level.as_str()).unwrap_or_default();
-        let output_layer = OutputLayer::new(output.clone());
-
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(output_layer)
-            .init();
-    }
-
-    Ok(output)
 }

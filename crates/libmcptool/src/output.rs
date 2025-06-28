@@ -7,6 +7,7 @@ use terminal_size::{terminal_size, Width};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 // Solarized Dark color scheme constants
 // Background tones
@@ -52,6 +53,45 @@ impl Output {
             stdout: Arc::new(Mutex::new(StandardStream::stdout(ColorChoice::Auto))),
             json,
         }
+    }
+
+    /// Set JSON output mode.
+    pub fn with_json(mut self, json: bool) -> Self {
+        self.json = json;
+        self
+    }
+
+    /// Enable logging with an optional log level and return self.
+    ///
+    /// If `level` is None, defaults to INFO level.
+    /// Valid levels are: "error", "warn", "info", "debug", "trace"
+    pub fn with_logging(
+        self,
+        level: Option<Option<String>>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        if let Some(log_level) = level {
+            let level = match log_level.as_deref() {
+                Some("error") => Level::ERROR,
+                Some("warn") => Level::WARN,
+                Some("info") => Level::INFO,
+                Some("debug") => Level::DEBUG,
+                Some("trace") => Level::TRACE,
+                Some(other) => {
+                    return Err(format!("Invalid log level: {other}").into());
+                }
+                None => Level::INFO, // Default to INFO if --logs is used without a level
+            };
+
+            let env_filter = EnvFilter::try_new(level.as_str()).unwrap_or_default();
+            let output_layer = OutputLayer::new(self.clone());
+
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(output_layer)
+                .init();
+        }
+
+        Ok(self)
     }
 
     pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
