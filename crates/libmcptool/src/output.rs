@@ -31,48 +31,47 @@ const SOLARIZED_BLUE: Color = Color::Rgb(38, 139, 210);
 const SOLARIZED_CYAN: Color = Color::Rgb(42, 161, 152);
 const SOLARIZED_GREEN: Color = Color::Rgb(133, 153, 0);
 
-struct Inner {
-    stdout: StandardStream,
-    json: bool,
-}
-
+/// Handles all output formatting for the application.
+///
+/// This struct provides a unified interface for outputting text to the console,
+/// with support for both human-readable formatted output and machine-readable JSON output.
+/// It uses the Solarized Dark color scheme for styled terminal output and can switch
+/// between colored text mode and JSON mode based on the `json` flag.
+///
+/// The struct is `Clone` and thread-safe, allowing it to be shared across different
+/// parts of the application.
 #[derive(Clone)]
 pub struct Output {
-    inner: Arc<Mutex<Inner>>,
+    stdout: Arc<Mutex<StandardStream>>,
+    json: bool,
 }
 
 impl Output {
     pub fn new(json: bool) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner {
-                stdout: StandardStream::stdout(ColorChoice::Auto),
-                json,
-            })),
+            stdout: Arc::new(Mutex::new(StandardStream::stdout(ColorChoice::Auto))),
+            json,
         }
     }
 
     pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
+        let mut stdout = self.stdout.lock().unwrap();
 
-        // In JSON mode, only output raw text without formatting
-        if inner.json {
-            writeln!(inner.stdout, "{message}")?;
-        } else {
-            inner.stdout.reset()?;
-            writeln!(inner.stdout, "{message}")?;
+        if !self.json {
+            stdout.reset()?;
         }
-        inner.stdout.flush()
+        writeln!(stdout, "{message}")?;
+        stdout.flush()
     }
 
     pub fn heading(&self, message: impl Into<String>) -> io::Result<()> {
-        let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
-
-        // Skip formatting in JSON mode
-        if inner.json {
+        if self.json {
             return Ok(());
         }
+
+        let message = message.into();
+        let mut stdout = self.stdout.lock().unwrap();
 
         // Get terminal width, default to 80 if unable to detect
         let width = if let Some((Width(w), _)) = terminal_size() {
@@ -96,83 +95,64 @@ impl Output {
         );
 
         // Set lighter content text on dark background for better readability
-        inner.stdout.set_color(
+        stdout.set_color(
             ColorSpec::new()
                 .set_fg(Some(SOLARIZED_BASE1))
                 .set_bg(Some(SOLARIZED_BASE02))
                 .set_bold(true),
         )?;
-        write!(inner.stdout, "{header}")?;
-        inner.stdout.reset()?;
-        writeln!(inner.stdout)?;
-        inner.stdout.flush()
+        write!(stdout, "{header}")?;
+        stdout.reset()?;
+        writeln!(stdout)?;
+        stdout.flush()
     }
 
     pub fn warn(&self, message: impl Into<String>) -> io::Result<()> {
-        let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
-
-        // Skip formatting in JSON mode
-        if inner.json {
-            return Ok(());
-        }
-
-        inner
-            .stdout
-            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_YELLOW)))?;
-        writeln!(inner.stdout, "[WARNING] {message}")?;
-        inner.stdout.reset()?;
-        inner.stdout.flush()
+        self.status(message, "[WARNING]", SOLARIZED_YELLOW, false)
     }
 
     pub fn error(&self, message: impl Into<String>) -> io::Result<()> {
-        let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
-
-        // Skip formatting in JSON mode
-        if inner.json {
-            return Ok(());
-        }
-
-        inner
-            .stdout
-            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_RED)).set_bold(true))?;
-        writeln!(inner.stdout, "[ERROR] {message}")?;
-        inner.stdout.reset()?;
-        inner.stdout.flush()
+        self.status(message, "[ERROR]", SOLARIZED_RED, true)
     }
 
     pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
-        let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
-
-        // Skip formatting in JSON mode
-        if inner.json {
-            return Ok(());
-        }
-
-        inner
-            .stdout
-            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_GREEN)))?;
-        writeln!(inner.stdout, "[OK] {message}")?;
-        inner.stdout.reset()?;
-        inner.stdout.flush()
+        self.status(message, "[OK]", SOLARIZED_GREEN, false)
     }
 
     pub fn debug(&self, message: impl Into<String>) -> io::Result<()> {
+        self.status(message, "[DEBUG]", SOLARIZED_MAGENTA, false)
+    }
+
+    // Helper method to reduce repetition
+    fn status(
+        &self,
+        message: impl Into<String>,
+        prefix: &str,
+        color: Color,
+        bold: bool,
+    ) -> io::Result<()> {
+        if self.json {
+            return Ok(());
+        }
+
         let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
-        inner
-            .stdout
-            .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_MAGENTA)))?;
-        writeln!(inner.stdout, "[DEBUG] {message}")?;
-        inner.stdout.reset()?;
-        inner.stdout.flush()
+        let mut stdout = self.stdout.lock().unwrap();
+
+        let mut color_spec = ColorSpec::new();
+        color_spec.set_fg(Some(color));
+        if bold {
+            color_spec.set_bold(true);
+        }
+
+        stdout.set_color(&color_spec)?;
+        writeln!(stdout, "{prefix} {message}")?;
+        stdout.reset()?;
+        stdout.flush()
     }
 
     pub fn trace(&self, message: impl Into<String>, level: Level) -> io::Result<()> {
         let message = message.into();
-        let mut inner = self.inner.lock().unwrap();
+        let mut stdout = self.stdout.lock().unwrap();
 
         let mut color_spec = ColorSpec::new();
         match level {
@@ -193,26 +173,22 @@ impl Output {
             }
         };
 
-        inner.stdout.set_color(&color_spec)?;
-        writeln!(inner.stdout, "trace: {message}")?;
-        inner.stdout.reset()?;
-        inner.stdout.flush()
+        stdout.set_color(&color_spec)?;
+        writeln!(stdout, "trace: {message}")?;
+        stdout.reset()?;
+        stdout.flush()
     }
 
     pub fn list_tools_result(
         &self,
         tools_result: &tenx_mcp::schema::ListToolsResult,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let inner = self.inner.lock().unwrap();
-
-        if inner.json {
+        if self.json {
             // Output as JSON
             let json = serde_json::to_string_pretty(tools_result)?;
-            drop(inner); // Release lock before calling self.text
             self.text(json)?;
         } else {
-            drop(inner); // Release lock before calling other methods
-                         // Output as formatted text
+            // Output as formatted text
             if tools_result.tools.is_empty() {
                 self.text("No tools available from this server.")?;
             } else {
@@ -278,14 +254,9 @@ impl Output {
     }
 
     pub fn ping(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let inner = self.inner.lock().unwrap();
-
-        if inner.json {
-            // Output empty JSON object
-            drop(inner); // Release lock before calling self.text
+        if self.json {
             self.text("{}")?;
         } else {
-            drop(inner); // Release lock before calling self.success
             self.success("Ping successful!")?;
         }
         Ok(())
@@ -298,6 +269,12 @@ impl Default for Output {
     }
 }
 
+/// A tracing subscriber layer that forwards log messages to an Output instance.
+///
+/// This struct implements the `tracing_subscriber::Layer` trait to integrate with
+/// the tracing ecosystem. It captures log events and forwards them to the Output
+/// struct for consistent formatting. This allows application logs to respect the
+/// same formatting rules (including JSON mode) as regular output.
 pub struct OutputLayer {
     output: Output,
 }
@@ -324,6 +301,11 @@ where
     }
 }
 
+/// A visitor for extracting message content from tracing events.
+///
+/// This struct implements the `tracing::field::Visit` trait to extract the message
+/// field from tracing events. It's used internally by `OutputLayer` to get the
+/// actual log message text that needs to be formatted and displayed.
 struct MessageVisitor {
     message: String,
 }
