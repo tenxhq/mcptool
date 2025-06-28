@@ -1,6 +1,5 @@
 use crate::{
-    common::connect_to_server, ctx::Ctx, mcp::connect_with_auth, target::Target,
-    utils::TimedFuture,
+    common::connect_to_server, ctx::Ctx, mcp::connect_with_auth, target::Target, utils::TimedFuture,
 };
 use tenx_mcp::{Client, ServerAPI};
 

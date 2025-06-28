@@ -100,12 +100,14 @@ pub async fn connect_with_auth(
     let storage = ctx.storage()?;
     let auth = storage.get_auth(auth_name)?;
 
-    ctx.output.text(format!("Using authentication: {auth_name}"))?;
+    ctx.output
+        .text(format!("Using authentication: {auth_name}"))?;
 
     // Check if token is expired
     if let Some(expires_at) = auth.expires_at {
         if expires_at <= std::time::SystemTime::now() {
-            ctx.output.warn("Access token has expired. Token refresh not yet implemented.")?;
+            ctx.output
+                .warn("Access token has expired. Token refresh not yet implemented.")?;
             return Err(
                 "Access token has expired. Please re-authenticate with 'mcptool auth add'".into(),
             );

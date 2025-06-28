@@ -34,7 +34,8 @@ pub async fn connect_command(
         }
     };
 
-    ctx.output.text(format!("Connecting to {final_target}..."))?;
+    ctx.output
+        .text(format!("Connecting to {final_target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = used_auth {
         mcp::connect_with_auth(ctx, &final_target, &auth_name).await?
@@ -46,7 +47,8 @@ pub async fn connect_command(
         "Connected to: {} v{}",
         init_result.server_info.name, init_result.server_info.version
     ))?;
-    ctx.output.text("Type 'help' for available commands, 'quit' to exit\n")?;
+    ctx.output
+        .text("Type 'help' for available commands, 'quit' to exit\n")?;
 
     let mut rl = DefaultEditor::new()?;
 
@@ -68,8 +70,10 @@ pub async fn connect_command(
                     }
                     "help" => {
                         ctx.output.heading("Available commands")?;
-                        ctx.output.text("  ping      - Send a ping request to the server")?;
-                        ctx.output.text("  listtools - List all available tools from the server")?;
+                        ctx.output
+                            .text("  ping      - Send a ping request to the server")?;
+                        ctx.output
+                            .text("  listtools - List all available tools from the server")?;
                         ctx.output.text("  help      - Show this help message")?;
                         ctx.output.text("  quit/exit - Exit the REPL")?
                     }
@@ -81,11 +85,9 @@ pub async fn connect_command(
                         Ok(_) => {}
                         Err(e) => ctx.output.error(format!("Failed to list tools: {e}"))?,
                     },
-                    _ => {
-                        ctx.output.warn(format!(
-                            "Unknown command: {line}. Type 'help' for available commands."
-                        ))?
-                    }
+                    _ => ctx.output.warn(format!(
+                        "Unknown command: {line}. Type 'help' for available commands."
+                    ))?,
                 }
             }
             Err(rustyline::error::ReadlineError::Interrupted) => {

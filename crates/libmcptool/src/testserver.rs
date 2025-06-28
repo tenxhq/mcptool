@@ -8,7 +8,7 @@ use tenx_mcp::{
     Error, Result, Server, ServerConn, ServerCtx,
 };
 
-use crate::{ctx::create_output_with_logging, output::Output};
+use crate::{ctx::Ctx, output::Output};
 
 /// A test server connection that logs all interactions verbosely
 #[derive(Clone)]
@@ -178,9 +178,8 @@ impl ServerConn for TestServerConn {
     }
 }
 
-pub async fn run_test_server(stdio: bool, port: u16, logs: Option<Option<String>>) -> Result<()> {
-    let output =
-        create_output_with_logging(logs).map_err(|e| Error::InvalidParams(e.to_string()))?;
+pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
+    let output = &ctx.output;
     let _ = output.heading("mcptool testserver");
     let _ = output.text(format!("Version: {}", env!("CARGO_PKG_VERSION")));
     let _ = output.text(format!(

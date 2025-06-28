@@ -123,8 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
 
-        Commands::Testserver { stdio, port, logs } => {
-            testserver::run_test_server(stdio, port, logs).await?;
+        Commands::Testserver { stdio, port, .. } => {
+            testserver::run_test_server(&ctx, stdio, port).await?;
         }
 
         Commands::Auth { command } => {

@@ -1,17 +1,15 @@
 use std::time::{Duration, SystemTime};
 
 use oauth2::{
-    AuthUrl, ClientId, ClientSecret, RefreshToken, RequestTokenError, TokenResponse, TokenUrl,
-    basic::BasicClient,
+    basic::BasicClient, AuthUrl, ClientId, ClientSecret, RefreshToken, RequestTokenError,
+    TokenResponse, TokenUrl,
 };
 
 use crate::ctx::Ctx;
 
-pub async fn renew_command(
-    ctx: &Ctx,
-    name: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    ctx.output.heading(format!("Renewing OAuth authentication: {name}"))?;
+pub async fn renew_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::error::Error>> {
+    ctx.output
+        .heading(format!("Renewing OAuth authentication: {name}"))?;
 
     let storage = ctx.storage()?;
     let mut auth = storage.get_auth(&name)?;
@@ -30,7 +28,8 @@ pub async fn renew_command(
                 let remaining = expires_at.duration_since(now).unwrap_or(Duration::ZERO);
                 let hours = remaining.as_secs() / 3600;
                 let minutes = (remaining.as_secs() % 3600) / 60;
-                ctx.output.text(format!("  Token expires in {hours}h {minutes}m"))?;
+                ctx.output
+                    .text(format!("  Token expires in {hours}h {minutes}m"))?;
             } else {
                 ctx.output.text("  Token is expired")?;
             }
@@ -97,7 +96,8 @@ pub async fn renew_command(
             let remaining = expires_at.duration_since(now).unwrap_or(Duration::ZERO);
             let hours = remaining.as_secs() / 3600;
             let minutes = (remaining.as_secs() % 3600) / 60;
-            ctx.output.text(format!("  Token expires in {hours}h {minutes}m"))?;
+            ctx.output
+                .text(format!("  Token expires in {hours}h {minutes}m"))?;
         } else {
             ctx.output.text("  Token is already expired")?;
         }

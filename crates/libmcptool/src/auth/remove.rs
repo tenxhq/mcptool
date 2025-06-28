@@ -1,10 +1,7 @@
 use crate::ctx::Ctx;
 use rustyline::DefaultEditor;
 
-pub async fn remove_command(
-    ctx: &Ctx,
-    name: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn remove_command(ctx: &Ctx, name: String) -> Result<(), Box<dyn std::error::Error>> {
     let storage = ctx.storage()?;
 
     // Check if the entry exists
@@ -16,9 +13,11 @@ pub async fn remove_command(
     let auth = storage.get_auth(&name)?;
 
     // Confirm removal
-    ctx.output.warn(format!("About to remove authentication entry '{name}'"))?;
+    ctx.output
+        .warn(format!("About to remove authentication entry '{name}'"))?;
     ctx.output.text(format!("  Server: {}", auth.server_url))?;
-    ctx.output.text(format!("  Client ID: {}", auth.client_id))?;
+    ctx.output
+        .text(format!("  Client ID: {}", auth.client_id))?;
     ctx.output.text("")?;
 
     let mut rl = DefaultEditor::new()?;

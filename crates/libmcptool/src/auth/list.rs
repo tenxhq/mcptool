@@ -9,11 +9,13 @@ pub async fn list_command(ctx: &Ctx) -> Result<(), Box<dyn std::error::Error>> {
     if auths.is_empty() {
         ctx.output.text("No authentication entries found.")?;
         ctx.output.text("")?;
-        ctx.output.text("Use 'mcptool auth add <name>' to add a new authentication entry.")?;
+        ctx.output
+            .text("Use 'mcptool auth add <name>' to add a new authentication entry.")?;
         return Ok(());
     }
 
-    ctx.output.heading(format!("Authentication entries ({}):", auths.len()))?;
+    ctx.output
+        .heading(format!("Authentication entries ({}):", auths.len()))?;
     ctx.output.text("")?;
 
     // Find the maximum lengths for formatting

@@ -24,7 +24,8 @@ pub async fn add_command(
     args: AddCommandArgs,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let name = args.name;
-    ctx.output.heading(format!("Adding OAuth authentication entry: {name}"))?;
+    ctx.output
+        .heading(format!("Adding OAuth authentication entry: {name}"))?;
 
     // Check if entry already exists
     let storage = ctx.storage()?;
@@ -91,7 +92,8 @@ pub async fn add_command(
                 };
             let url = format!("http://127.0.0.1:{actual_port}/callback");
             ctx.output.text(format!("Using redirect URL: {url}"))?;
-            ctx.output.warn("Note: This URL must be registered in your OAuth application settings!")?;
+            ctx.output
+                .warn("Note: This URL must be registered in your OAuth application settings!")?;
             (url, Some(actual_port))
         }
     };
@@ -100,10 +102,13 @@ pub async fn add_command(
     if args.show_redirect_url {
         ctx.output.text("")?;
         ctx.output.heading("OAuth Redirect URL Information")?;
-        ctx.output.text(format!("Redirect URL that will be used: {redirect_url}"))?;
+        ctx.output
+            .text(format!("Redirect URL that will be used: {redirect_url}"))?;
         ctx.output.text("")?;
-        ctx.output.text("Add this URL to your OAuth application settings.")?;
-        ctx.output.text("Then run the command again without --show-redirect-url to complete setup.")?;
+        ctx.output
+            .text("Add this URL to your OAuth application settings.")?;
+        ctx.output
+            .text("Then run the command again without --show-redirect-url to complete setup.")?;
         return Ok(());
     }
 
@@ -138,7 +143,8 @@ pub async fn add_command(
 
     ctx.output.text("")?;
     ctx.output.heading("Authorization required")?;
-    ctx.output.text("Please visit the following URL to authorize the application:")?;
+    ctx.output
+        .text("Please visit the following URL to authorize the application:")?;
     ctx.output.text("")?;
     ctx.output.text(auth_url_with_params.as_str())?;
     ctx.output.text("")?;
@@ -147,11 +153,14 @@ pub async fn add_command(
     match open::that(auth_url_with_params.as_str()) {
         Ok(_) => {
             ctx.output.success("Browser opened successfully.")?;
-            ctx.output.text("If the browser didn't open, copy the URL above and paste it manually.")?;
+            ctx.output
+                .text("If the browser didn't open, copy the URL above and paste it manually.")?;
         }
         Err(e) => {
-            ctx.output.warn(format!("Could not open browser automatically: {e}"))?;
-            ctx.output.text("Please copy the URL above and open it manually in your browser.")?;
+            ctx.output
+                .warn(format!("Could not open browser automatically: {e}"))?;
+            ctx.output
+                .text("Please copy the URL above and open it manually in your browser.")?;
 
             // Additional troubleshooting hints
             #[cfg(target_os = "macos")]
@@ -172,8 +181,10 @@ pub async fn add_command(
         ctx.output.text(format!(
             "Local callback server listening on port {callback_port}"
         ))?;
-        ctx.output.text("The browser will redirect back to this server after authorization.")?;
-        ctx.output.text("Press Ctrl+C to cancel and use manual mode instead.")?;
+        ctx.output
+            .text("The browser will redirect back to this server after authorization.")?;
+        ctx.output
+            .text("Press Ctrl+C to cancel and use manual mode instead.")?;
 
         // Use tokio::select to handle both callback and cancellation
         tokio::select! {
@@ -192,12 +203,18 @@ pub async fn add_command(
     } else {
         // Manual mode - user will paste callback URL
         ctx.output.text("Manual callback mode:")?;
-        ctx.output.text("After authorizing, you'll be redirected to your registered URL.")?;
-        ctx.output.text("Copy the full URL from your browser and paste it when prompted.")?;
+        ctx.output
+            .text("After authorizing, you'll be redirected to your registered URL.")?;
+        ctx.output
+            .text("Copy the full URL from your browser and paste it when prompted.")?;
 
         timeout(
             Duration::from_secs(300), // 5 minute timeout
-            wait_for_manual_callback(&mut oauth_client, csrf_token.secret().to_string(), &ctx.output),
+            wait_for_manual_callback(
+                &mut oauth_client,
+                csrf_token.secret().to_string(),
+                &ctx.output,
+            ),
         )
         .await
     };
@@ -208,12 +225,16 @@ pub async fn add_command(
             let error_msg = format!("{e}");
             if error_msg.contains("redirect_uri") || error_msg.contains("redirect URL") {
                 ctx.output.text("")?;
-                ctx.output.error("OAuth Error: Redirect URL not registered")?;
-                ctx.output.text("The redirect URL is not associated with your OAuth application.")?;
+                ctx.output
+                    .error("OAuth Error: Redirect URL not registered")?;
+                ctx.output
+                    .text("The redirect URL is not associated with your OAuth application.")?;
                 ctx.output.text("")?;
                 ctx.output.text("To fix this:")?;
-                ctx.output.text("1. Go to your OAuth application settings")?;
-                ctx.output.text(format!("2. Add this redirect URL: {redirect_url}"))?;
+                ctx.output
+                    .text("1. Go to your OAuth application settings")?;
+                ctx.output
+                    .text(format!("2. Add this redirect URL: {redirect_url}"))?;
                 ctx.output.text("3. Run this command again")?;
                 ctx.output.text("")?;
                 return Err(format!("OAuth configuration error: {error_msg}").into());
@@ -221,14 +242,20 @@ pub async fn add_command(
                 || error_msg.contains("client_id and/or client_secret")
             {
                 ctx.output.text("")?;
-                ctx.output.error("OAuth Error: Invalid client credentials")?;
-                ctx.output.text("The client_id and/or client_secret are incorrect.")?;
+                ctx.output
+                    .error("OAuth Error: Invalid client credentials")?;
+                ctx.output
+                    .text("The client_id and/or client_secret are incorrect.")?;
                 ctx.output.text("")?;
                 ctx.output.text("To fix this:")?;
-                ctx.output.text("1. Verify your OAuth application settings")?;
-                ctx.output.text("2. Make sure the client_id and client_secret match exactly")?;
-                ctx.output.text("3. For GitHub: client_secret is required for OAuth Apps")?;
-                ctx.output.text("4. Check for trailing spaces or incorrect copy/paste")?;
+                ctx.output
+                    .text("1. Verify your OAuth application settings")?;
+                ctx.output
+                    .text("2. Make sure the client_id and client_secret match exactly")?;
+                ctx.output
+                    .text("3. For GitHub: client_secret is required for OAuth Apps")?;
+                ctx.output
+                    .text("4. Check for trailing spaces or incorrect copy/paste")?;
                 ctx.output.text("")?;
                 return Err(format!("OAuth authentication error: {error_msg}").into());
             }
@@ -263,7 +290,8 @@ pub async fn add_command(
     storage.store_auth(&stored_auth)?;
 
     ctx.output.text("")?;
-    ctx.output.success(format!("Authentication entry '{name}' saved successfully!"))?;
+    ctx.output
+        .success(format!("Authentication entry '{name}' saved successfully!"))?;
     ctx.output.text(format!(
         "You can now use: mcptool connect --auth {name} <target>"
     ))?;
