@@ -1,5 +1,4 @@
-use crate::output::Output;
-use crate::storage::{StoredAuth, TokenStorage};
+use crate::{core::MCPTool, output::Output, storage::StoredAuth};
 use rustyline::DefaultEditor;
 use std::time::{Duration, SystemTime};
 use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
@@ -20,13 +19,14 @@ pub struct AddCommandArgs {
 
 pub async fn add_command(
     args: AddCommandArgs,
+    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let name = args.name;
     output.heading(format!("Adding OAuth authentication entry: {name}"))?;
 
     // Check if entry already exists
-    let storage = TokenStorage::new()?;
+    let storage = mcptool.storage()?;
     if storage.list_auth()?.contains(&name) {
         return Err(format!("Authentication entry '{name}' already exists").into());
     }

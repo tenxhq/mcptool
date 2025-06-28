@@ -36,13 +36,8 @@ pub struct TokenStorage {
 }
 
 impl TokenStorage {
-    pub fn new() -> Result<Self, StorageError> {
-        let config_dir = dirs::config_dir()
-            .ok_or(StorageError::ConfigDir)?
-            .join("mcptool");
-
+    pub fn new(config_dir: PathBuf) -> Result<Self, StorageError> {
         fs::create_dir_all(&config_dir)?;
-
         Ok(Self { config_dir })
     }
 
@@ -113,7 +108,16 @@ mod tests {
 
     #[test]
     fn test_storage_lifecycle() {
-        let storage = TokenStorage::new().expect("Failed to create storage");
+        let test_dir = std::env::temp_dir().join("mcptool_test").join(format!(
+            "test_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let storage = TokenStorage::new(test_dir).expect("Failed to create storage");
 
         // Create test auth
         let auth = StoredAuth {

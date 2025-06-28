@@ -1,6 +1,6 @@
+use crate::core::MCPTool;
 use crate::common::connect_to_server;
 use crate::output::Output;
-use crate::storage::TokenStorage;
 use crate::target::Target;
 use crate::utils::TimedFuture;
 use rustyline::DefaultEditor;
@@ -9,6 +9,7 @@ use tenx_mcp::{Client, ServerAPI};
 pub async fn connect_command(
     target: Option<String>,
     auth_name: Option<String>,
+    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Determine the target to connect to
@@ -20,7 +21,7 @@ pub async fn connect_command(
         }
         (None, Some(auth)) => {
             // No target but auth provided, get URL from auth
-            let storage = TokenStorage::new()?;
+            let storage = mcptool.storage()?;
             let auth_entry = storage.get_auth(&auth)?;
 
             output.text(format!(
@@ -39,7 +40,7 @@ pub async fn connect_command(
     output.text(format!("Connecting to {final_target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = used_auth {
-        crate::mcp::connect_with_auth(&final_target, &auth_name, &output).await?
+        crate::mcp::connect_with_auth(&final_target, &auth_name, mcptool, &output).await?
     } else {
         connect_to_server(&final_target).await?
     };

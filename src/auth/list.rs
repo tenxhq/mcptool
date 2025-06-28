@@ -1,9 +1,12 @@
+use crate::core::MCPTool;
 use crate::output::Output;
-use crate::storage::TokenStorage;
 use std::time::SystemTime;
 
-pub async fn list_command(output: Output) -> Result<(), Box<dyn std::error::Error>> {
-    let storage = TokenStorage::new()?;
+pub async fn list_command(
+    mcptool: &MCPTool,
+    output: Output,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let storage = mcptool.storage()?;
     let auths = storage.get_all_auth()?;
 
     if auths.is_empty() {

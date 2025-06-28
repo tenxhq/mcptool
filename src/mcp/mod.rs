@@ -1,8 +1,8 @@
 mod listtools;
 mod ping;
 
+use crate::core::MCPTool;
 use crate::output::Output;
-use crate::storage::TokenStorage;
 use crate::target::Target;
 use clap::{Args, Subcommand};
 use std::sync::Arc;
@@ -43,16 +43,17 @@ pub enum McpCommands {
 
 pub async fn handle_mcp_command(
     command: McpCommands,
+    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         McpCommands::Ping { target, mcp_args } => {
-            let target = resolve_target(target, &mcp_args.auth)?;
-            ping_command(target, mcp_args.auth, output).await
+            let target = resolve_target(target, &mcp_args.auth, mcptool)?;
+            ping_command(target, mcp_args.auth, mcptool, output).await
         }
         McpCommands::Listtools { target, mcp_args } => {
-            let target = resolve_target(target, &mcp_args.auth)?;
-            listtools_command(target, mcp_args.auth, output).await
+            let target = resolve_target(target, &mcp_args.auth, mcptool)?;
+            listtools_command(target, mcp_args.auth, mcptool, output).await
         }
     }
 }
@@ -60,6 +61,7 @@ pub async fn handle_mcp_command(
 fn resolve_target(
     target: Option<String>,
     auth_name: &Option<String>,
+    mcptool: &MCPTool,
 ) -> Result<Target, Box<dyn std::error::Error>> {
     match (target, auth_name) {
         (Some(t), _) => {
@@ -68,7 +70,7 @@ fn resolve_target(
         }
         (None, Some(auth)) => {
             // No target but auth provided, get URL from auth
-            let storage = TokenStorage::new()?;
+            let storage = mcptool.storage()?;
             let auth_entry = storage.get_auth(auth)?;
 
             println!(
@@ -87,6 +89,7 @@ fn resolve_target(
 pub async fn connect_with_auth(
     target: &Target,
     auth_name: &str,
+    mcptool: &MCPTool,
     output: &Output,
 ) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>>
 {
@@ -97,7 +100,7 @@ pub async fn connect_with_auth(
     }
 
     // Load auth credentials
-    let storage = TokenStorage::new()?;
+    let storage = mcptool.storage()?;
     let auth = storage.get_auth(auth_name)?;
 
     output.text(format!("Using authentication: {auth_name}"))?;

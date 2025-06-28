@@ -1,12 +1,24 @@
 use mcptool::storage::{StorageError, StoredAuth, TokenStorage};
 use std::time::SystemTime;
 
+fn create_test_storage() -> TokenStorage {
+    let test_dir = std::env::temp_dir()
+        .join("mcptool_test")
+        .join(format!("test_{}_{}", std::process::id(), 
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()));
+    
+    TokenStorage::new(test_dir).expect("Failed to create test storage")
+}
+
 #[test]
 fn test_auth_storage_lifecycle() {
     // Create a unique test auth entry
     let test_name = format!("test_auth_{}", std::process::id());
 
-    let storage = TokenStorage::new().expect("Failed to create storage");
+    let storage = create_test_storage();
 
     // Ensure test entry doesn't exist
     let _ = storage.remove_auth(&test_name);
@@ -70,7 +82,7 @@ fn test_auth_storage_lifecycle() {
 
 #[test]
 fn test_auth_not_found() {
-    let storage = TokenStorage::new().expect("Failed to create storage");
+    let storage = create_test_storage();
 
     match storage.get_auth("nonexistent_auth_entry") {
         Err(StorageError::NotFound(_)) => {} // Expected
@@ -81,7 +93,7 @@ fn test_auth_not_found() {
 
 #[test]
 fn test_remove_nonexistent() {
-    let storage = TokenStorage::new().expect("Failed to create storage");
+    let storage = create_test_storage();
 
     match storage.remove_auth("nonexistent_auth_entry") {
         Err(StorageError::NotFound(_)) => {} // Expected

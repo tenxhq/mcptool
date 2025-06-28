@@ -1,6 +1,7 @@
 mod auth;
 mod common;
 mod connect;
+mod core;
 mod mcp;
 mod output;
 mod proxy;
@@ -10,8 +11,17 @@ mod testserver;
 mod utils;
 
 use clap::{Args, Parser, Subcommand};
-use mcptool::VERSION;
+use core::MCPTool;
 use target::Target;
+
+pub const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "-",
+    env!("VERGEN_GIT_SHA"),
+    " (",
+    env!("VERGEN_BUILD_DATE"),
+    ")"
+);
 
 #[derive(Args)]
 struct TargetArgs {
@@ -98,6 +108,14 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
+    // Calculate the configuration directory
+    let config_path = dirs::config_dir()
+        .ok_or("Failed to get config directory")?
+        .join("mcptool");
+
+    // Create the MCPTool instance
+    let mcptool = MCPTool::new(config_path);
+
     match cli.command {
         Commands::Version => {
             println!("mcptool version {VERSION}");
@@ -109,12 +127,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Mcp { command } => {
             let output = output::Output::new();
-            mcp::handle_mcp_command(command, output).await?;
+            mcp::handle_mcp_command(command, &mcptool, output).await?;
         }
 
         Commands::Connect { target, logs, auth } => {
             let output = common::create_output_with_logging(logs)?;
-            connect::connect_command(target, auth, output).await?;
+            connect::connect_command(target, auth, &mcptool, output).await?;
         }
 
         Commands::Proxy { proxy_args } => {
@@ -128,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Auth { command } => {
             let output = output::Output::new();
-            auth::handle_auth_command(command, output).await?;
+            auth::handle_auth_command(command, &mcptool, output).await?;
         }
     }
 

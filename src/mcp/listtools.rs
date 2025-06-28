@@ -1,3 +1,4 @@
+use crate::core::MCPTool;
 use crate::common::connect_to_server;
 use crate::output::Output;
 use crate::target::Target;
@@ -7,12 +8,13 @@ use tenx_mcp::{Client, ServerAPI};
 pub async fn listtools_command(
     target: Target,
     auth: Option<String>,
+    mcptool: &MCPTool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     output.text(format!("Listing tools from {target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = auth {
-        super::connect_with_auth(&target, &auth_name, &output).await?
+        super::connect_with_auth(&target, &auth_name, mcptool, &output).await?
     } else {
         connect_to_server(&target).await?
     };

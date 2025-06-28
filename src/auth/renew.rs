@@ -1,15 +1,19 @@
+use crate::core::MCPTool;
 use crate::output::Output;
-use crate::storage::TokenStorage;
 use oauth2::RequestTokenError;
 use oauth2::{
     AuthUrl, ClientId, ClientSecret, RefreshToken, TokenResponse, TokenUrl, basic::BasicClient,
 };
 use std::time::{Duration, SystemTime};
 
-pub async fn renew_command(name: String, output: Output) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn renew_command(
+    name: String,
+    mcptool: &MCPTool,
+    output: Output,
+) -> Result<(), Box<dyn std::error::Error>> {
     output.heading(format!("Renewing OAuth authentication: {name}"))?;
 
-    let storage = TokenStorage::new()?;
+    let storage = mcptool.storage()?;
     let mut auth = storage.get_auth(&name)?;
 
     // Check if we have a refresh token
