@@ -1,9 +1,11 @@
+mod auth;
 mod common;
 mod connect;
 mod listtools;
 mod output;
 mod ping;
 mod proxy;
+mod storage;
 mod target;
 mod testserver;
 mod utils;
@@ -64,6 +66,10 @@ enum Commands {
         /// Enable logging with optional level (error, warn, info, debug, trace)
         #[arg(long, value_name = "LEVEL")]
         logs: Option<Option<String>>,
+
+        /// Use a stored authentication entry
+        #[arg(long)]
+        auth: Option<String>,
     },
 
     /// Transparently proxy and print traffic forwarded to the target
@@ -85,6 +91,12 @@ enum Commands {
         /// Enable logging with optional level (error, warn, info, debug, trace)
         #[arg(long, value_name = "LEVEL")]
         logs: Option<Option<String>>,
+    },
+
+    /// Manage OAuth authentication entries
+    Auth {
+        #[command(subcommand)]
+        command: auth::AuthCommands,
     },
 }
 
@@ -111,10 +123,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             listtools::listtools_command(target).await?;
         }
 
-        Commands::Connect { target_args, logs } => {
+        Commands::Connect {
+            target_args,
+            logs,
+            auth,
+        } => {
             let target = Target::parse(&target_args.target)?;
             let output = common::create_output_with_logging(logs)?;
-            connect::connect_command(target, output).await?;
+            connect::connect_command(target, auth, output).await?;
         }
 
         Commands::Proxy { proxy_args } => {
@@ -124,6 +140,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Testserver { stdio, port, logs } => {
             testserver::run_test_server(stdio, port, logs).await?;
+        }
+
+        Commands::Auth { command } => {
+            let output = output::Output::new();
+            auth::handle_auth_command(command, output).await?;
         }
     }
 
