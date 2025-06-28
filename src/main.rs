@@ -1,9 +1,8 @@
 mod auth;
 mod common;
 mod connect;
-mod listtools;
+mod mcp;
 mod output;
-mod ping;
 mod proxy;
 mod storage;
 mod target;
@@ -46,16 +45,10 @@ enum Commands {
     /// Display the mcptool build version & linked MCP revision
     Version,
 
-    /// Send a ping request to an MCP server
-    Ping {
-        #[command(flatten)]
-        target_args: TargetArgs,
-    },
-
-    /// List all MCP tools from a server
-    Listtools {
-        #[command(flatten)]
-        target_args: TargetArgs,
+    /// MCP invocation commands (ping, listtools, etc.)
+    Mcp {
+        #[command(subcommand)]
+        command: mcp::McpCommands,
     },
 
     /// Connect to an MCP server and start an interactive REPL
@@ -114,14 +107,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        Commands::Ping { target_args } => {
-            let target = Target::parse(&target_args.target)?;
-            ping::ping_command(target).await?;
-        }
-
-        Commands::Listtools { target_args } => {
-            let target = Target::parse(&target_args.target)?;
-            listtools::listtools_command(target).await?;
+        Commands::Mcp { command } => {
+            let output = output::Output::new();
+            mcp::handle_mcp_command(command, output).await?;
         }
 
         Commands::Connect { target, logs, auth } => {

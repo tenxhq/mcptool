@@ -4,11 +4,7 @@ use crate::storage::TokenStorage;
 use crate::target::Target;
 use crate::utils::TimedFuture;
 use rustyline::DefaultEditor;
-use std::sync::Arc;
-use tenx_mcp::{
-    Client, ServerAPI,
-    auth::{OAuth2Client, OAuth2Config},
-};
+use tenx_mcp::{Client, ServerAPI};
 
 pub async fn connect_command(
     target: Option<String>,
@@ -43,7 +39,7 @@ pub async fn connect_command(
     output.text(format!("Connecting to {final_target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = used_auth {
-        connect_with_auth(&final_target, &auth_name, &output).await?
+        crate::mcp::connect_with_auth(&final_target, &auth_name, &output).await?
     } else {
         connect_to_server(&final_target).await?
     };
@@ -191,91 +187,4 @@ fn display_tools(
         }
     }
     Ok(())
-}
-
-async fn connect_with_auth(
-    target: &Target,
-    auth_name: &str,
-    output: &Output,
-) -> Result<(Client<()>, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>> {
-    // Only HTTP/HTTPS targets support OAuth
-    match target {
-        Target::Http { .. } | Target::Https { .. } => {}
-        _ => return Err("OAuth authentication is only supported for HTTP/HTTPS targets".into()),
-    }
-
-    // Load auth credentials
-    let storage = TokenStorage::new()?;
-    let auth = storage.get_auth(auth_name)?;
-
-    output.text(format!("Using authentication: {}", auth_name))?;
-
-    // Check if token is expired
-    if let Some(expires_at) = auth.expires_at {
-        if expires_at <= std::time::SystemTime::now() {
-            output.warn("Access token has expired. Token refresh not yet implemented.")?;
-            return Err(
-                "Access token has expired. Please re-authenticate with 'mcptool auth add'".into(),
-            );
-        }
-    }
-
-    // Create OAuth config
-    let oauth_config = OAuth2Config {
-        client_id: auth.client_id,
-        client_secret: auth.client_secret,
-        auth_url: auth.auth_url,
-        token_url: auth.token_url,
-        redirect_url: auth
-            .redirect_url
-            .unwrap_or_else(|| "http://localhost:0".to_string()),
-        resource: "".to_string(), // Empty resource, could be stored in auth if needed
-        scopes: auth.scopes,
-    };
-
-    // Create OAuth client
-    let oauth_client = OAuth2Client::new(oauth_config)?;
-
-    // Set the stored tokens if available
-    if let Some(access_token) = auth.access_token {
-        let token = tenx_mcp::auth::OAuth2Token {
-            access_token,
-            refresh_token: auth.refresh_token,
-            expires_at: auth.expires_at.map(|system_time| {
-                // Convert SystemTime to Instant
-                match system_time.duration_since(std::time::SystemTime::now()) {
-                    Ok(duration) => std::time::Instant::now() + duration,
-                    Err(_) => std::time::Instant::now(), // Token is already expired
-                }
-            }),
-        };
-        oauth_client.set_token(token).await;
-    }
-
-    let oauth_client = Arc::new(oauth_client);
-
-    // Create MCP client
-    let mut client = Client::new("mcptool", crate::VERSION)
-        .with_capabilities(tenx_mcp::schema::ClientCapabilities::default());
-
-    // Connect with OAuth
-    let init_result = match target {
-        Target::Http { host, port } => {
-            let url = format!("http://{host}:{port}");
-            client
-                .connect_http_with_oauth(&url, oauth_client)
-                .await
-                .map_err(|e| format!("Failed to connect to HTTP endpoint {url} with OAuth: {e}"))?
-        }
-        Target::Https { host, port } => {
-            let url = format!("https://{host}:{port}");
-            client
-                .connect_http_with_oauth(&url, oauth_client)
-                .await
-                .map_err(|e| format!("Failed to connect to HTTPS endpoint {url} with OAuth: {e}"))?
-        }
-        _ => unreachable!(), // We checked this above
-    };
-
-    Ok((client, init_result))
 }

@@ -17,7 +17,7 @@ administrators, and CI pipelines that interact with servers speaking the
 * **One‑liner connections** – quickly open an interactive MCP session without
   extra setup.
 * **Health & latency checks** – measure round‑trip times with a simple `mcptool
-  ping`.
+  mcp ping`.
 * **Capability discovery** – automatically probe which optional commands a
   server supports.
 * **Script‑friendly output** – machine‑readable JSON and quiet modes for
@@ -67,14 +67,16 @@ or a local command to be spawned in **stdio** mode.
 
 ### MCP Commands (usable inside the prompt *or* from the shell with a `<target>`)
 
-When you are **inside the prompt**, type these commands **without** the `mcptool` prefix and without a target. From the regular shell, prefix them with `mcptool` and provide a `<target>`.
+When you are **inside the prompt**, type these commands **without** the `mcptool` prefix and without a target. From the regular shell, prefix them with `mcptool mcp` and provide a `<target>`.
+
+All MCP commands support the `--auth` flag to use stored authentication credentials. When using `--auth`, the target is optional and will use the server URL from the auth entry.
 
 | Prompt form                                   | Shell form                                                     | Purpose                                                                                                                       |
 | --------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `ping`                                        | `mcptool ping <target>`                                        | Measure round‑trip latency.                                                                                                   |
+| `ping`                                        | `mcptool mcp ping <target>`                                    | Measure round‑trip latency.                                                                                                   |
 | `status`                                      | `mcptool status <target>`                                      | Fetch server status/handshake info.                                                                                           |
 | `probe`                                       | `mcptool probe <target>`                                       | Run all discovery calls (`listtools`, `listprompts`, `listresources`, `listresourcetemplates`) and print a complete overview. |
-| `listtools`                                   | `mcptool listtools <target>`                                   | List all MCP tools (`tools/list`).                                                                                            |
+| `listtools`                                   | `mcptool mcp listtools <target>`                               | List all MCP tools (`tools/list`).                                                                                            |
 | `listprompts`                                 | `mcptool listprompts <target>`                                 | List predefined prompt templates (`prompts/list`).                                                                            |
 | `listresources`                               | `mcptool listresources <target>`                               | List server resources such as databases or file trees (`resources/list`).                                                     |
 | `listresourcetemplates`                       | `mcptool listresourcetemplates <target>`                       | List resource templates available for instantiation.                                                                          |
@@ -102,10 +104,16 @@ summarize      translate      moderate
 
 ```bash
 # Check latency to a remote MCP server (implicit TCP)
-mcptool ping api.acme.ai
+mcptool mcp ping api.acme.ai
 
 # Check latency to a local stdio server
-mcptool ping "cmd://./my‑stdio‑server --some --argument"
+mcptool mcp ping "cmd://./my‑stdio‑server --some --argument"
+
+# Use stored authentication (e.g., for GitHub Copilot)
+mcptool mcp ping --auth github
+
+# List tools using authentication
+mcptool mcp listtools --auth github
 
 # Connect via TCP on a non‑default port and immediately run a status query, then exit
 mcptool calltool tcp://dev.acme.ai:7780 -- status
