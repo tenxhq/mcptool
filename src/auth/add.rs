@@ -2,7 +2,7 @@ use crate::output::Output;
 use crate::storage::{StoredAuth, TokenStorage};
 use rustyline::DefaultEditor;
 use std::time::{Duration, SystemTime};
-use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
+use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
 
 pub async fn add_command(
@@ -12,6 +12,10 @@ pub async fn add_command(
     token_url_arg: Option<String>,
     client_id_arg: Option<String>,
     client_secret_arg: Option<String>,
+    redirect_url_arg: Option<String>,
+    resource_arg: Option<String>,
+    scopes_arg: Option<String>,
+    show_redirect_url: bool,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     output.heading(format!("Adding OAuth authentication entry: {}", name))?;
@@ -64,28 +68,46 @@ pub async fn add_command(
         }
     };
 
-    // Redirect URL with default
-    let redirect_url_input = rl.readline("Redirect URL (default: http://localhost:0): ")?;
-    let redirect_url = if redirect_url_input.trim().is_empty() {
-        "http://localhost:0".to_string()
-    } else {
-        redirect_url_input
+    // Redirect URL configuration
+    let (redirect_url, use_local_server) = match redirect_url_arg {
+        Some(url) => {
+            // Use command line provided redirect URL
+            (url, None)
+        }
+        None => {
+            // Use local callback server with common port first
+            let callback_port = 8080;
+            // Try to bind to port 8080 first (commonly registered), fallback to dynamic
+            let actual_port =
+                match std::net::TcpListener::bind(format!("127.0.0.1:{}", callback_port)) {
+                    Ok(_) => callback_port,
+                    Err(_) => find_available_port()?,
+                };
+            let url = format!("http://127.0.0.1:{}/callback", actual_port);
+            output.text(format!("Using redirect URL: {}", url))?;
+            output.warn("Note: This URL must be registered in your OAuth application settings!")?;
+            (url, Some(actual_port))
+        }
     };
 
-    // Resource (audience) - optional for some providers
-    let resource_input = rl.readline("Resource/Audience (optional, press Enter to skip): ")?;
-    let resource = if resource_input.trim().is_empty() {
-        None
-    } else {
-        Some(resource_input)
-    };
+    // If user just wants to see the redirect URL, show it and exit
+    if show_redirect_url {
+        output.text("")?;
+        output.heading("OAuth Redirect URL Information")?;
+        output.text(format!("Redirect URL that will be used: {}", redirect_url))?;
+        output.text("")?;
+        output.text("Add this URL to your OAuth application settings.")?;
+        output.text("Then run the command again without --show-redirect-url to complete setup.")?;
+        return Ok(());
+    }
 
-    // Scopes
-    let scopes_input = rl.readline("Scopes (space-separated, e.g., 'read write'): ")?;
-    let scopes: Vec<String> = if scopes_input.trim().is_empty() {
-        vec![]
-    } else {
-        scopes_input.split_whitespace().map(String::from).collect()
+    // Resource (audience) - use flag or default
+    let resource = resource_arg.unwrap_or_default();
+
+    // Scopes - use flag or default to empty
+    let scopes: Vec<String> = match scopes_arg {
+        Some(s) => s.split(',').map(|s| s.trim().to_string()).collect(),
+        None => vec![],
     };
 
     output.text("")?;
@@ -98,7 +120,7 @@ pub async fn add_command(
         auth_url: auth_url.clone(),
         token_url: token_url.clone(),
         redirect_url: redirect_url.clone(),
-        resource: resource.unwrap_or_default(),
+        resource: resource.clone(),
         scopes: scopes.clone(),
     };
 
@@ -116,26 +138,101 @@ pub async fn add_command(
     output.text("")?;
 
     // Try to open browser
-    if let Err(e) = open::that(auth_url_with_params.as_str()) {
-        output.warn(format!("Could not open browser automatically: {}", e))?;
-        output.text("Please open the URL manually in your browser.")?;
-    } else {
-        output.success("Browser opened successfully.")?;
+    match open::that(auth_url_with_params.as_str()) {
+        Ok(_) => {
+            output.success("Browser opened successfully.")?;
+            output.text("If the browser didn't open, copy the URL above and paste it manually.")?;
+        }
+        Err(e) => {
+            output.warn(format!("Could not open browser automatically: {}", e))?;
+            output.text("Please copy the URL above and open it manually in your browser.")?;
+
+            // Additional troubleshooting hints
+            #[cfg(target_os = "macos")]
+            output.text(
+                "On macOS: You may need to allow the terminal app to control other applications.",
+            )?;
+            #[cfg(target_os = "linux")]
+            output.text("On Linux: Make sure you have a default browser set (xdg-open).")?;
+            #[cfg(target_os = "windows")]
+            output.text("On Windows: Check your default browser settings.")?;
+        }
     }
 
     output.text("")?;
-    output.text("Waiting for authorization callback...")?;
 
-    // Wait for the callback with a timeout
-    let token_result = timeout(
-        Duration::from_secs(300), // 5 minute timeout
-        wait_for_token(&mut oauth_client, csrf_token.secret().to_string()),
-    )
-    .await;
+    // Handle different callback modes
+    let token_result = if let Some(callback_port) = use_local_server {
+        // Use local callback server
+        let callback_server = OAuth2CallbackServer::new(callback_port);
+
+        output.text("Waiting for authorization callback...")?;
+        output.text(format!(
+            "Local callback server listening on port {}",
+            callback_port
+        ))?;
+        output.text("The browser will redirect back to this server after authorization.")?;
+        output.text("Press Ctrl+C to cancel and use manual mode instead.")?;
+
+        // Use tokio::select to handle both callback and cancellation
+        tokio::select! {
+            result = wait_for_callback(&mut oauth_client, callback_server, csrf_token.secret().to_string()) => {
+                Ok(result)
+            }
+            _ = tokio::signal::ctrl_c() => {
+                output.text("")?;
+                output.warn("Cancelled! Switching to manual mode...")?;
+                timeout(
+                    Duration::from_secs(300),
+                    wait_for_manual_callback(&mut oauth_client, csrf_token.secret().to_string(), &output),
+                ).await
+            }
+        }
+    } else {
+        // Manual mode - user will paste callback URL
+        output.text("Manual callback mode:")?;
+        output.text("After authorizing, you'll be redirected to your registered URL.")?;
+        output.text("Copy the full URL from your browser and paste it when prompted.")?;
+
+        timeout(
+            Duration::from_secs(300), // 5 minute timeout
+            wait_for_manual_callback(&mut oauth_client, csrf_token.secret().to_string(), &output),
+        )
+        .await
+    };
 
     let token = match token_result {
         Ok(Ok(token)) => token,
-        Ok(Err(e)) => return Err(format!("OAuth error: {}", e).into()),
+        Ok(Err(e)) => {
+            let error_msg = format!("{}", e);
+            if error_msg.contains("redirect_uri") || error_msg.contains("redirect URL") {
+                output.text("")?;
+                output.error("OAuth Error: Redirect URL not registered")?;
+                output.text("The redirect URL is not associated with your OAuth application.")?;
+                output.text("")?;
+                output.text("To fix this:")?;
+                output.text("1. Go to your OAuth application settings")?;
+                output.text(format!("2. Add this redirect URL: {}", redirect_url))?;
+                output.text("3. Run this command again")?;
+                output.text("")?;
+                return Err(format!("OAuth configuration error: {}", error_msg).into());
+            } else if error_msg.contains("incorrect_client_credentials")
+                || error_msg.contains("client_id and/or client_secret")
+            {
+                output.text("")?;
+                output.error("OAuth Error: Invalid client credentials")?;
+                output.text("The client_id and/or client_secret are incorrect.")?;
+                output.text("")?;
+                output.text("To fix this:")?;
+                output.text("1. Verify your OAuth application settings")?;
+                output.text("2. Make sure the client_id and client_secret match exactly")?;
+                output.text("3. For GitHub: client_secret is required for OAuth Apps")?;
+                output.text("4. Check for trailing spaces or incorrect copy/paste")?;
+                output.text("")?;
+                return Err(format!("OAuth authentication error: {}", error_msg).into());
+            }
+            return Err(format!("OAuth error: {}", error_msg).into());
+        }
         Err(_) => return Err("OAuth authorization timed out after 5 minutes".into()),
     };
 
@@ -177,39 +274,85 @@ pub async fn add_command(
     Ok(())
 }
 
-async fn wait_for_token(
+async fn wait_for_callback(
     oauth_client: &mut OAuth2Client,
-    _expected_state: String,
+    callback_server: OAuth2CallbackServer,
+    expected_state: String,
 ) -> Result<tenx_mcp::auth::OAuth2Token, Box<dyn std::error::Error>> {
-    // The OAuth2Client handles the callback server internally
-    // We just need to wait for the exchange to complete
+    // Wait for the OAuth callback
+    let (code, state) = callback_server.wait_for_callback().await?;
 
-    // In a real implementation, this would be handled by the OAuth2Client
-    // which would start a local server and wait for the callback
+    // Verify the state parameter matches for CSRF protection
+    if state != expected_state {
+        return Err("State parameter mismatch - possible CSRF attack".into());
+    }
 
-    // For now, we'll prompt the user to paste the callback URL
+    // Exchange the authorization code for an access token
+    let token = oauth_client.exchange_code(code, state).await?;
+
+    Ok(token)
+}
+
+async fn wait_for_manual_callback(
+    oauth_client: &mut OAuth2Client,
+    expected_state: String,
+    output: &Output,
+) -> Result<tenx_mcp::auth::OAuth2Token, Box<dyn std::error::Error>> {
     let mut rl = DefaultEditor::new()?;
-    println!();
-    let callback_url = rl.readline("After authorizing, paste the full callback URL here: ")?;
+
+    output.text("")?;
+    let callback_url = rl.readline("Paste the full callback URL from your browser: ")?;
 
     // Extract the authorization code and state from the callback URL
-    let url = url::Url::parse(&callback_url)?;
+    let url = url::Url::parse(&callback_url).map_err(|e| format!("Invalid URL format: {}", e))?;
+
     let mut code = None;
     let mut state = None;
+    let mut error = None;
+    let mut error_description = None;
 
     for (key, value) in url.query_pairs() {
         match key.as_ref() {
             "code" => code = Some(value.to_string()),
             "state" => state = Some(value.to_string()),
+            "error" => error = Some(value.to_string()),
+            "error_description" => error_description = Some(value.to_string()),
             _ => {}
         }
+    }
+
+    // Check for OAuth errors first
+    if let Some(error_code) = error {
+        let description =
+            error_description.unwrap_or_else(|| "No description provided".to_string());
+        return Err(format!(
+            "OAuth authorization failed: {} - {}",
+            error_code, description
+        )
+        .into());
     }
 
     let code = code.ok_or("No authorization code found in callback URL")?;
     let state = state.ok_or("No state parameter found in callback URL")?;
 
-    // Exchange the code for a token
-    let token = oauth_client.exchange_code(code, state).await?;
+    // Verify the state parameter matches for CSRF protection
+    if state != expected_state {
+        return Err("State parameter mismatch - possible CSRF attack".into());
+    }
+
+    // Exchange the authorization code for an access token
+    let token = oauth_client
+        .exchange_code(code, state)
+        .await
+        .map_err(|e| format!("Token exchange failed: {}", e))?;
 
     Ok(token)
+}
+
+fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let addr = listener.local_addr()?;
+    Ok(addr.port())
 }

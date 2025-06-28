@@ -35,6 +35,22 @@ pub enum AuthCommands {
         /// OAuth client secret
         #[arg(long)]
         client_secret: Option<String>,
+
+        /// OAuth redirect URL (if not provided, will use local server)
+        #[arg(long)]
+        redirect_url: Option<String>,
+
+        /// Resource/Audience parameter for OAuth
+        #[arg(long)]
+        resource: Option<String>,
+
+        /// OAuth scopes (comma-separated)
+        #[arg(long)]
+        scopes: Option<String>,
+
+        /// Show the redirect URL that will be used without starting OAuth flow
+        #[arg(long)]
+        show_redirect_url: bool,
     },
 
     /// List all stored authentication entries
@@ -61,6 +77,10 @@ pub async fn handle_auth_command(
             token_url,
             client_id,
             client_secret,
+            redirect_url,
+            resource,
+            scopes,
+            show_redirect_url,
         } => {
             add_command(
                 name,
@@ -69,6 +89,10 @@ pub async fn handle_auth_command(
                 token_url,
                 client_id,
                 client_secret,
+                redirect_url,
+                resource,
+                scopes,
+                show_redirect_url,
                 output,
             )
             .await
