@@ -9,11 +9,11 @@ pub async fn connect_command(
     target: Target,
     output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    output.text(&format!("Connecting to {target}..."))?;
+    output.text(format!("Connecting to {target}..."))?;
 
     let (mut client, init_result) = connect_to_server(&target).await?;
 
-    output.success(&format!(
+    output.success(format!(
         "Connected to: {} v{}",
         init_result.server_info.name, init_result.server_info.version
     ))?;
@@ -46,14 +46,14 @@ pub async fn connect_command(
                     }
                     "ping" => match execute_ping(&mut client).await {
                         Ok(_) => output.success("Ping successful!")?,
-                        Err(e) => output.error(&format!("Ping failed: {e}"))?,
+                        Err(e) => output.error(format!("Ping failed: {e}"))?,
                     },
                     "listtools" => match execute_listtools(&mut client, &output).await {
                         Ok(_) => {}
-                        Err(e) => output.error(&format!("Failed to list tools: {e}"))?,
+                        Err(e) => output.error(format!("Failed to list tools: {e}"))?,
                     },
                     _ => {
-                        output.warn(&format!(
+                        output.warn(format!(
                             "Unknown command: {line}. Type 'help' for available commands."
                         ))?;
                     }
@@ -68,7 +68,7 @@ pub async fn connect_command(
                 break;
             }
             Err(err) => {
-                output.error(&format!("Error: {err:?}"))?;
+                output.error(format!("Error: {err:?}"))?;
                 break;
             }
         }
@@ -98,10 +98,10 @@ fn display_tools(
     if tools_result.tools.is_empty() {
         output.text("No tools available from this server.")?;
     } else {
-        output.heading(&format!("Available tools ({}):", tools_result.tools.len()))?;
+        output.heading(format!("Available tools ({}):", tools_result.tools.len()))?;
         output.text("")?;
         for tool in &tools_result.tools {
-            output.text(&format!("  - {}", tool.name))?;
+            output.text(format!("  - {}", tool.name))?;
 
             output.text("")?;
             output.text("    Description:")?;
@@ -109,7 +109,7 @@ fn display_tools(
             match &tool.description {
                 Some(description) => {
                     for line in description.lines() {
-                        output.text(&format!("      {line}"))?;
+                        output.text(format!("      {line}"))?;
                     }
                 }
                 None => output.text("      No description available")?,
@@ -120,7 +120,7 @@ fn display_tools(
             output.text("")?;
             match &tool.annotations {
                 Some(annotations) => {
-                    output.text(&format!("      {:?}", annotations.title))?;
+                    output.text(format!("      {:?}", annotations.title))?;
                 }
                 None => output.text("      No annotations available")?,
             }
@@ -140,11 +140,11 @@ fn display_tools(
                             .input_schema
                             .required
                             .is_some_and(|list| list.contains(name));
-                        output.text(&format!("      {name} - (required: {is_required})"))?;
+                        output.text(format!("      {name} - (required: {is_required})"))?;
                         output.text("")?;
 
                         for line in rendered_schema.lines() {
-                            output.text(&format!("        {line}"))?;
+                            output.text(format!("        {line}"))?;
                         }
                         output.text("")?;
                     }

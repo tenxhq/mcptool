@@ -49,14 +49,16 @@ impl Output {
         }
     }
 
-    pub fn text(&self, message: &str) -> io::Result<()> {
+    pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
         inner.stdout.reset()?;
-        writeln!(inner.stdout, "{message}")?;
+        writeln!(inner.stdout, "{}", message)?;
         inner.stdout.flush()
     }
 
-    pub fn heading(&self, message: &str) -> io::Result<()> {
+    pub fn heading(&self, message: impl Into<String>) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
 
         // Get terminal width, default to 80 if unable to detect
@@ -67,7 +69,7 @@ impl Output {
         };
 
         // Calculate padding needed
-        let message_with_spaces = format!(" {message} ");
+        let message_with_spaces = format!(" {} ", message);
         let padding = width.saturating_sub(message_with_spaces.len());
         let left_pad = padding / 2;
         let right_pad = padding - left_pad;
@@ -87,53 +89,58 @@ impl Output {
                 .set_bg(Some(SOLARIZED_BASE02))
                 .set_bold(true),
         )?;
-        write!(inner.stdout, "{header}")?;
+        write!(inner.stdout, "{}", header)?;
         inner.stdout.reset()?;
         writeln!(inner.stdout)?;
         inner.stdout.flush()
     }
 
-    pub fn warn(&self, message: &str) -> io::Result<()> {
+    pub fn warn(&self, message: impl Into<String>) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_YELLOW)))?;
-        writeln!(inner.stdout, "[WARNING] {message}")?;
+        writeln!(inner.stdout, "[WARNING] {}", message)?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
 
-    pub fn error(&self, message: &str) -> io::Result<()> {
+    pub fn error(&self, message: impl Into<String>) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_RED)).set_bold(true))?;
-        writeln!(inner.stdout, "[ERROR] {message}")?;
+        writeln!(inner.stdout, "[ERROR] {}", message)?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
 
-    pub fn success(&self, message: &str) -> io::Result<()> {
+    pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_GREEN)))?;
-        writeln!(inner.stdout, "[OK] {message}")?;
+        writeln!(inner.stdout, "[OK] {}", message)?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
 
-    pub fn debug(&self, message: &str) -> io::Result<()> {
+    pub fn debug(&self, message: impl Into<String>) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
         inner
             .stdout
             .set_color(ColorSpec::new().set_fg(Some(SOLARIZED_MAGENTA)))?;
-        writeln!(inner.stdout, "[DEBUG] {message}")?;
+        writeln!(inner.stdout, "[DEBUG] {}", message)?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }
 
-    pub fn trace(&self, message: &str, level: Level) -> io::Result<()> {
+    pub fn trace(&self, message: impl Into<String>, level: Level) -> io::Result<()> {
+        let message = message.into();
         let mut inner = self.inner.lock().unwrap();
 
         let mut color_spec = ColorSpec::new();
@@ -156,7 +163,7 @@ impl Output {
         };
 
         inner.stdout.set_color(&color_spec)?;
-        writeln!(inner.stdout, "trace: {message}")?;
+        writeln!(inner.stdout, "trace: {}", message)?;
         inner.stdout.reset()?;
         inner.stdout.flush()
     }

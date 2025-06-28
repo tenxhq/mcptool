@@ -29,18 +29,18 @@ impl TestServerConn {
         *counter += 1;
         let _ = self
             .output
-            .heading(&format!("request #{counter} - {method}"));
-        let _ = self.output.text(&format!("parameters: {params}"));
+            .heading(format!("request #{counter} - {method}"));
+        let _ = self.output.text(format!("parameters: {params}"));
     }
 
     fn log_response(&self, method: &str, response: &str) {
-        let _ = self.output.heading(&format!("response - {method}"));
-        let _ = self.output.text(&format!("result: {response}"));
+        let _ = self.output.heading(format!("response - {method}"));
+        let _ = self.output.text(format!("result: {response}"));
     }
 
     fn log_notification(&self, notification: &str) {
         let _ = self.output.heading("notification");
-        let _ = self.output.text(&format!("content: {notification}"));
+        let _ = self.output.text(format!("content: {notification}"));
     }
 }
 
@@ -49,7 +49,7 @@ impl ServerConn for TestServerConn {
     async fn on_connect(&self, _context: &ServerCtx, remote_addr: &str) -> Result<()> {
         let _ = self
             .output
-            .success(&format!("client connected from {remote_addr}"));
+            .success(format!("client connected from {remote_addr}"));
         Ok(())
     }
 
@@ -181,8 +181,8 @@ pub async fn run_test_server(stdio: bool, port: u16, logs: Option<Option<String>
     let output =
         create_output_with_logging(logs).map_err(|e| Error::InvalidParams(e.to_string()))?;
     let _ = output.heading("mcptool testserver");
-    let _ = output.text(&format!("Version: {}", env!("CARGO_PKG_VERSION")));
-    let _ = output.text(&format!(
+    let _ = output.text(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+    let _ = output.text(format!(
         "Protocol: {}",
         tenx_mcp::schema::LATEST_PROTOCOL_VERSION
     ));
@@ -199,7 +199,7 @@ pub async fn run_test_server(stdio: bool, port: u16, logs: Option<Option<String>
     } else {
         let addr = format!("127.0.0.1:{port}");
         let _ = output.text("Transport: HTTP");
-        let _ = output.success(&format!("Listening on: http://{addr}"));
+        let _ = output.success(format!("Listening on: http://{addr}"));
         let _ = output.text("Press Ctrl+C to stop the server");
 
         let handle = server.serve_http(&addr).await?;
