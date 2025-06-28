@@ -1,7 +1,6 @@
 mod listtools;
 mod ping;
 
-use clap::{Args, Subcommand};
 use std::sync::Arc;
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 
@@ -10,66 +9,38 @@ use crate::{common::connect_to_server, ctx::Ctx, target::Target, utils::TimedFut
 pub use listtools::listtools;
 pub use ping::ping;
 
-#[derive(Args)]
-pub struct McpArgs {
-    /// Use a stored authentication entry
-    #[arg(long)]
-    auth: Option<String>,
-}
-
-#[derive(Subcommand)]
-pub enum McpCommands {
-    /// Send a ping request to an MCP server
-    Ping {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port")
-        /// Optional when using --auth, will use the stored server URL
-        target: Option<String>,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// List all MCP tools from a server
-    Listtools {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port")
-        /// Optional when using --auth, will use the stored server URL
-        target: Option<String>,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-}
-
-pub async fn handle_mcp_command(
+pub async fn handle_ping_command(
     ctx: &Ctx,
-    command: McpCommands,
+    target: Option<String>,
+    auth: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    match command {
-        McpCommands::Ping { target, mcp_args } => {
-            let target = resolve_target(ctx, target, &mcp_args.auth)?;
-            let (mut client, init_result) = get_client(ctx, &target, mcp_args.auth).await?;
+    let target = resolve_target(ctx, target, &auth)?;
+    let (mut client, init_result) = get_client(ctx, &target, auth).await?;
 
-            ctx.output.text(format!("Pinging {target}..."))?;
-            ctx.output.text(format!(
-                "Server info: {} v{}",
-                init_result.server_info.name, init_result.server_info.version
-            ))?;
+    ctx.output.text(format!("Pinging {target}..."))?;
+    ctx.output.text(format!(
+        "Server info: {} v{}",
+        init_result.server_info.name, init_result.server_info.version
+    ))?;
 
-            ping(&mut client, &ctx.output).await
-        }
-        McpCommands::Listtools { target, mcp_args } => {
-            let target = resolve_target(ctx, target, &mcp_args.auth)?;
-            let (mut client, init_result) = get_client(ctx, &target, mcp_args.auth).await?;
+    ping(&mut client, &ctx.output).await
+}
 
-            ctx.output.text(format!("Listing tools from {target}..."))?;
-            ctx.output.text(format!(
-                "Connected to: {} v{}\n",
-                init_result.server_info.name, init_result.server_info.version
-            ))?;
+pub async fn handle_listtools_command(
+    ctx: &Ctx,
+    target: Option<String>,
+    auth: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let target = resolve_target(ctx, target, &auth)?;
+    let (mut client, init_result) = get_client(ctx, &target, auth).await?;
 
-            listtools(&mut client, &ctx.output).await
-        }
-    }
+    ctx.output.text(format!("Listing tools from {target}..."))?;
+    ctx.output.text(format!(
+        "Connected to: {} v{}\n",
+        init_result.server_info.name, init_result.server_info.version
+    ))?;
+
+    listtools(&mut client, &ctx.output).await
 }
 
 async fn get_client(
