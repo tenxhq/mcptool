@@ -1,10 +1,14 @@
-use crate::Target;
-use chrono::Utc;
 use std::path::PathBuf;
-use tokio::fs::OpenOptions;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
-use tokio::process::Command;
+
+use chrono::Utc;
+use tokio::{
+    fs::OpenOptions,
+    io::{self, AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    process::Command,
+};
+
+use crate::target::Target;
 
 async fn log_traffic(
     log_writer: &mut tokio::fs::File,

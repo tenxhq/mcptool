@@ -1,15 +1,16 @@
-use mcptool::storage::{StorageError, StoredAuth, TokenStorage};
+use libmcptool::storage::{StorageError, StoredAuth, TokenStorage};
 use std::time::SystemTime;
 
 fn create_test_storage() -> TokenStorage {
-    let test_dir = std::env::temp_dir()
-        .join("mcptool_test")
-        .join(format!("test_{}_{}", std::process::id(), 
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()));
-    
+    let test_dir = std::env::temp_dir().join("mcptool_test").join(format!(
+        "test_{}_{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+
     TokenStorage::new(test_dir).expect("Failed to create test storage")
 }
 

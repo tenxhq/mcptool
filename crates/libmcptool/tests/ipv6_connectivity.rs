@@ -1,4 +1,4 @@
-use mcptool::target::Target;
+use libmcptool::target::Target;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 

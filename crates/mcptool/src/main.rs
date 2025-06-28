@@ -1,18 +1,5 @@
-mod auth;
-mod common;
-mod connect;
-mod ctx;
-mod mcp;
-mod output;
-mod proxy;
-mod storage;
-mod target;
-mod testserver;
-mod utils;
-
 use clap::{Args, Parser, Subcommand};
-use ctx::Ctx;
-use target::Target;
+use libmcptool::{auth, common, connect, ctx, mcp, output, proxy, target::Target, testserver};
 
 #[derive(Args)]
 struct TargetArgs {
@@ -105,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("mcptool");
 
     // Create the MCPTool instance
-    let ctx = Ctx::new(config_path);
+    let ctx = ctx::Ctx::new(config_path);
 
     match cli.command {
         Commands::Version => {
