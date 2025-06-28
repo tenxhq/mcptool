@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use libmcptool::{auth, common, connect, ctx, mcp, output, proxy, target::Target, testserver};
+use libmcptool::{auth, connect, ctx, mcp, proxy, target::Target, testserver};
 
 #[derive(Args)]
 struct TargetArgs {
@@ -91,8 +91,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Failed to get config directory")?
         .join("mcptool");
 
+    // Determine if any command needs logging
+    let logs = match &cli.command {
+        Commands::Connect { logs, .. } => logs.clone(),
+        Commands::Testserver { logs, .. } => logs.clone(),
+        _ => None,
+    };
+
     // Create the MCPTool instance
-    let ctx = ctx::Ctx::new(config_path);
+    let ctx = ctx::Ctx::new(config_path, logs)?;
 
     match cli.command {
         Commands::Version => {
@@ -104,13 +111,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Mcp { command } => {
-            let output = output::Output::new();
-            mcp::handle_mcp_command(&ctx, command, output).await?;
+            mcp::handle_mcp_command(&ctx, command).await?;
         }
 
-        Commands::Connect { target, logs, auth } => {
-            let output = common::create_output_with_logging(logs)?;
-            connect::connect_command(&ctx, target, auth, output).await?;
+        Commands::Connect { target, auth, .. } => {
+            connect::connect_command(&ctx, target, auth).await?;
         }
 
         Commands::Proxy { proxy_args } => {
@@ -123,8 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Auth { command } => {
-            let output = output::Output::new();
-            auth::handle_auth_command(&ctx, command, output).await?;
+            auth::handle_auth_command(&ctx, command).await?;
         }
     }
 

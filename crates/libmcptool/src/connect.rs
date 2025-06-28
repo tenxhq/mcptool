@@ -2,13 +2,12 @@ use crate::common::connect_to_server;
 use rustyline::DefaultEditor;
 use tenx_mcp::{Client, ServerAPI};
 
-use crate::{ctx::Ctx, mcp, output::Output, target::Target, utils::TimedFuture};
+use crate::{ctx::Ctx, mcp, target::Target, utils::TimedFuture};
 
 pub async fn connect_command(
     ctx: &Ctx,
     target: Option<String>,
     auth_name: Option<String>,
-    output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Determine the target to connect to
     let (final_target, used_auth) = match (target, auth_name) {
@@ -22,7 +21,7 @@ pub async fn connect_command(
             let storage = ctx.storage()?;
             let auth_entry = storage.get_auth(&auth)?;
 
-            output.text(format!(
+            ctx.output.text(format!(
                 "Using server URL from auth '{}': {}",
                 auth, auth_entry.server_url
             ))?;
@@ -35,19 +34,19 @@ pub async fn connect_command(
         }
     };
 
-    output.text(format!("Connecting to {final_target}..."))?;
+    ctx.output.text(format!("Connecting to {final_target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = used_auth {
-        mcp::connect_with_auth(ctx, &final_target, &auth_name, &output).await?
+        mcp::connect_with_auth(ctx, &final_target, &auth_name).await?
     } else {
         connect_to_server(&final_target).await?
     };
 
-    output.success(format!(
+    ctx.output.success(format!(
         "Connected to: {} v{}",
         init_result.server_info.name, init_result.server_info.version
     ))?;
-    output.text("Type 'help' for available commands, 'quit' to exit\n")?;
+    ctx.output.text("Type 'help' for available commands, 'quit' to exit\n")?;
 
     let mut rl = DefaultEditor::new()?;
 
@@ -64,41 +63,41 @@ pub async fn connect_command(
 
                 match line {
                     "quit" | "exit" => {
-                        output.text("Goodbye!")?;
+                        ctx.output.text("Goodbye!")?;
                         break;
                     }
                     "help" => {
-                        output.heading("Available commands")?;
-                        output.text("  ping      - Send a ping request to the server")?;
-                        output.text("  listtools - List all available tools from the server")?;
-                        output.text("  help      - Show this help message")?;
-                        output.text("  quit/exit - Exit the REPL")?;
+                        ctx.output.heading("Available commands")?;
+                        ctx.output.text("  ping      - Send a ping request to the server")?;
+                        ctx.output.text("  listtools - List all available tools from the server")?;
+                        ctx.output.text("  help      - Show this help message")?;
+                        ctx.output.text("  quit/exit - Exit the REPL")?
                     }
                     "ping" => match execute_ping(&mut client).await {
-                        Ok(_) => output.success("Ping successful!")?,
-                        Err(e) => output.error(format!("Ping failed: {e}"))?,
+                        Ok(_) => ctx.output.success("Ping successful!")?,
+                        Err(e) => ctx.output.error(format!("Ping failed: {e}"))?,
                     },
-                    "listtools" => match execute_listtools(&mut client, &output).await {
+                    "listtools" => match execute_listtools(&mut client, &ctx.output).await {
                         Ok(_) => {}
-                        Err(e) => output.error(format!("Failed to list tools: {e}"))?,
+                        Err(e) => ctx.output.error(format!("Failed to list tools: {e}"))?,
                     },
                     _ => {
-                        output.warn(format!(
+                        ctx.output.warn(format!(
                             "Unknown command: {line}. Type 'help' for available commands."
-                        ))?;
+                        ))?
                     }
                 }
             }
             Err(rustyline::error::ReadlineError::Interrupted) => {
-                output.text("CTRL-C")?;
+                ctx.output.text("CTRL-C")?;
                 break;
             }
             Err(rustyline::error::ReadlineError::Eof) => {
-                output.text("CTRL-D")?;
+                ctx.output.text("CTRL-D")?;
                 break;
             }
             Err(err) => {
-                output.error(format!("Error: {err:?}"))?;
+                ctx.output.error(format!("Error: {err:?}"))?;
                 break;
             }
         }
@@ -114,7 +113,7 @@ async fn execute_ping(client: &mut Client<()>) -> Result<(), Box<dyn std::error:
 
 async fn execute_listtools(
     client: &mut Client<()>,
-    output: &Output,
+    output: &crate::output::Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let tools_result = client.list_tools(None).timed("Tools retrieved").await?;
     display_tools(&tools_result, output)?;
@@ -123,7 +122,7 @@ async fn execute_listtools(
 
 fn display_tools(
     tools_result: &tenx_mcp::schema::ListToolsResult,
-    output: &Output,
+    output: &crate::output::Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if tools_result.tools.is_empty() {
         output.text("No tools available from this server.")?;

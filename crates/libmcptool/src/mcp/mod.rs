@@ -5,7 +5,7 @@ use clap::{Args, Subcommand};
 use std::sync::Arc;
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 
-use crate::{ctx::Ctx, output::Output, target::Target};
+use crate::{ctx::Ctx, target::Target};
 
 pub use listtools::listtools_command;
 pub use ping::ping_command;
@@ -43,16 +43,15 @@ pub enum McpCommands {
 pub async fn handle_mcp_command(
     ctx: &Ctx,
     command: McpCommands,
-    output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         McpCommands::Ping { target, mcp_args } => {
             let target = resolve_target(ctx, target, &mcp_args.auth)?;
-            ping_command(ctx, target, mcp_args.auth, output).await
+            ping_command(ctx, target, mcp_args.auth).await
         }
         McpCommands::Listtools { target, mcp_args } => {
             let target = resolve_target(ctx, target, &mcp_args.auth)?;
-            listtools_command(ctx, target, mcp_args.auth, output).await
+            listtools_command(ctx, target, mcp_args.auth).await
         }
     }
 }
@@ -89,7 +88,6 @@ pub async fn connect_with_auth(
     ctx: &Ctx,
     target: &Target,
     auth_name: &str,
-    output: &Output,
 ) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult), Box<dyn std::error::Error>>
 {
     // Only HTTP/HTTPS targets support OAuth
@@ -102,12 +100,12 @@ pub async fn connect_with_auth(
     let storage = ctx.storage()?;
     let auth = storage.get_auth(auth_name)?;
 
-    output.text(format!("Using authentication: {auth_name}"))?;
+    ctx.output.text(format!("Using authentication: {auth_name}"))?;
 
     // Check if token is expired
     if let Some(expires_at) = auth.expires_at {
         if expires_at <= std::time::SystemTime::now() {
-            output.warn("Access token has expired. Token refresh not yet implemented.")?;
+            ctx.output.warn("Access token has expired. Token refresh not yet implemented.")?;
             return Err(
                 "Access token has expired. Please re-authenticate with 'mcptool auth add'".into(),
             );

@@ -1,11 +1,9 @@
 use crate::ctx::Ctx;
-use crate::output::Output;
 use rustyline::DefaultEditor;
 
 pub async fn remove_command(
     ctx: &Ctx,
     name: String,
-    output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let storage = ctx.storage()?;
 
@@ -18,23 +16,23 @@ pub async fn remove_command(
     let auth = storage.get_auth(&name)?;
 
     // Confirm removal
-    output.warn(format!("About to remove authentication entry '{name}'"))?;
-    output.text(format!("  Server: {}", auth.server_url))?;
-    output.text(format!("  Client ID: {}", auth.client_id))?;
-    output.text("")?;
+    ctx.output.warn(format!("About to remove authentication entry '{name}'"))?;
+    ctx.output.text(format!("  Server: {}", auth.server_url))?;
+    ctx.output.text(format!("  Client ID: {}", auth.client_id))?;
+    ctx.output.text("")?;
 
     let mut rl = DefaultEditor::new()?;
     let confirmation = rl.readline("Are you sure you want to remove this entry? (y/N): ")?;
 
     if confirmation.trim().to_lowercase() != "y" {
-        output.text("Removal cancelled.")?;
+        ctx.output.text("Removal cancelled.")?;
         return Ok(());
     }
 
     // Remove the entry
     storage.remove_auth(&name)?;
 
-    output.success(format!(
+    ctx.output.success(format!(
         "Authentication entry '{name}' removed successfully."
     ))?;
 

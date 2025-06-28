@@ -1,20 +1,20 @@
 use std::time::SystemTime;
 
-use crate::{ctx::Ctx, output::Output};
+use crate::ctx::Ctx;
 
-pub async fn list_command(ctx: &Ctx, output: Output) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn list_command(ctx: &Ctx) -> Result<(), Box<dyn std::error::Error>> {
     let storage = ctx.storage()?;
     let auths = storage.get_all_auth()?;
 
     if auths.is_empty() {
-        output.text("No authentication entries found.")?;
-        output.text("")?;
-        output.text("Use 'mcptool auth add <name>' to add a new authentication entry.")?;
+        ctx.output.text("No authentication entries found.")?;
+        ctx.output.text("")?;
+        ctx.output.text("Use 'mcptool auth add <name>' to add a new authentication entry.")?;
         return Ok(());
     }
 
-    output.heading(format!("Authentication entries ({}):", auths.len()))?;
-    output.text("")?;
+    ctx.output.heading(format!("Authentication entries ({}):", auths.len()))?;
+    ctx.output.text("")?;
 
     // Find the maximum lengths for formatting
     let max_name_len = auths.iter().map(|a| a.name.len()).max().unwrap_or(4).max(4);
@@ -32,7 +32,7 @@ pub async fn list_command(ctx: &Ctx, output: Output) -> Result<(), Box<dyn std::
         .max(9);
 
     // Print header
-    output.text(format!(
+    ctx.output.text(format!(
         "{:<width_name$}  {:<width_server$}  {:<width_client$}  {}",
         "Name",
         "Server",
@@ -43,7 +43,7 @@ pub async fn list_command(ctx: &Ctx, output: Output) -> Result<(), Box<dyn std::
         width_client = max_client_len,
     ))?;
 
-    output.text(format!(
+    ctx.output.text(format!(
         "{:-<width_name$}  {:-<width_server$}  {:-<width_client$}  {:-<10}",
         "",
         "",
@@ -78,7 +78,7 @@ pub async fn list_command(ctx: &Ctx, output: Output) -> Result<(), Box<dyn std::
             }
         };
 
-        output.text(format!(
+        ctx.output.text(format!(
             "{:<width_name$}  {:<width_server$}  {:<width_client$}  {}",
             auth.name,
             auth.server_url,

@@ -1,5 +1,5 @@
 use crate::{
-    common::connect_to_server, ctx::Ctx, mcp::connect_with_auth, output::Output, target::Target,
+    common::connect_to_server, ctx::Ctx, mcp::connect_with_auth, target::Target,
     utils::TimedFuture,
 };
 use tenx_mcp::{Client, ServerAPI};
@@ -8,29 +8,28 @@ pub async fn listtools_command(
     ctx: &Ctx,
     target: Target,
     auth: Option<String>,
-    output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    output.text(format!("Listing tools from {target}..."))?;
+    ctx.output.text(format!("Listing tools from {target}..."))?;
 
     let (mut client, init_result) = if let Some(auth_name) = auth {
-        connect_with_auth(ctx, &target, &auth_name, &output).await?
+        connect_with_auth(ctx, &target, &auth_name).await?
     } else {
         connect_to_server(&target).await?
     };
 
-    output.text(format!(
+    ctx.output.text(format!(
         "Connected to: {} v{}\n",
         init_result.server_info.name, init_result.server_info.version
     ))?;
 
-    execute_listtools(&mut client, &output).await?;
+    execute_listtools(&mut client, &ctx.output).await?;
 
     Ok(())
 }
 
 async fn execute_listtools(
     client: &mut Client<()>,
-    output: &Output,
+    output: &crate::output::Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let tools_result = client.list_tools(None).timed("Tools retrieved").await?;
     display_tools(&tools_result, output)?;
@@ -39,7 +38,7 @@ async fn execute_listtools(
 
 fn display_tools(
     tools_result: &tenx_mcp::schema::ListToolsResult,
-    output: &Output,
+    output: &crate::output::Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if tools_result.tools.is_empty() {
         output.text("No tools available from this server.")?;

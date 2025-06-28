@@ -5,14 +5,13 @@ use oauth2::{
     basic::BasicClient,
 };
 
-use crate::{ctx::Ctx, output::Output};
+use crate::ctx::Ctx;
 
 pub async fn renew_command(
     ctx: &Ctx,
     name: String,
-    output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    output.heading(format!("Renewing OAuth authentication: {name}"))?;
+    ctx.output.heading(format!("Renewing OAuth authentication: {name}"))?;
 
     let storage = ctx.storage()?;
     let mut auth = storage.get_auth(&name)?;
@@ -23,7 +22,7 @@ pub async fn renew_command(
         .as_ref()
         .ok_or("No refresh token available for this authentication entry")?;
 
-    output.text("Current token status:")?;
+    ctx.output.text("Current token status:")?;
     match &auth.expires_at {
         Some(expires_at) => {
             let now = SystemTime::now();
@@ -31,18 +30,18 @@ pub async fn renew_command(
                 let remaining = expires_at.duration_since(now).unwrap_or(Duration::ZERO);
                 let hours = remaining.as_secs() / 3600;
                 let minutes = (remaining.as_secs() % 3600) / 60;
-                output.text(format!("  Token expires in {hours}h {minutes}m"))?;
+                ctx.output.text(format!("  Token expires in {hours}h {minutes}m"))?;
             } else {
-                output.text("  Token is expired")?;
+                ctx.output.text("  Token is expired")?;
             }
         }
         None => {
-            output.text("  No expiration information available")?;
+            ctx.output.text("  No expiration information available")?;
         }
     }
 
-    output.text("")?;
-    output.text("Refreshing token...")?;
+    ctx.output.text("")?;
+    ctx.output.text("Refreshing token...")?;
 
     // Create OAuth client directly using oauth2 crate
     let mut client = BasicClient::new(ClientId::new(auth.client_id.clone()))
@@ -88,9 +87,9 @@ pub async fn renew_command(
     // Save the updated auth
     storage.store_auth(&auth)?;
 
-    output.success("Token refreshed successfully!")?;
-    output.text("")?;
-    output.text("New token status:")?;
+    ctx.output.success("Token refreshed successfully!")?;
+    ctx.output.text("")?;
+    ctx.output.text("New token status:")?;
 
     if let Some(expires_at) = auth.expires_at {
         let now = SystemTime::now();
@@ -98,12 +97,12 @@ pub async fn renew_command(
             let remaining = expires_at.duration_since(now).unwrap_or(Duration::ZERO);
             let hours = remaining.as_secs() / 3600;
             let minutes = (remaining.as_secs() % 3600) / 60;
-            output.text(format!("  Token expires in {hours}h {minutes}m"))?;
+            ctx.output.text(format!("  Token expires in {hours}h {minutes}m"))?;
         } else {
-            output.text("  Token is already expired")?;
+            ctx.output.text("  Token is already expired")?;
         }
     } else {
-        output.text("  No expiration information available")?;
+        ctx.output.text("  No expiration information available")?;
     }
 
     Ok(())

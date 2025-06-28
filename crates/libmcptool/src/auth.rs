@@ -4,7 +4,6 @@ mod remove;
 mod renew;
 
 use crate::ctx::Ctx;
-use crate::output::Output;
 use clap::Subcommand;
 
 pub use add::{AddCommandArgs, add_command};
@@ -77,7 +76,6 @@ pub enum AuthCommands {
 pub async fn handle_auth_command(
     ctx: &Ctx,
     command: AuthCommands,
-    output: Output,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         AuthCommands::Add {
@@ -104,10 +102,10 @@ pub async fn handle_auth_command(
                 scopes,
                 show_redirect_url,
             };
-            add_command(ctx, args, output).await
+            add_command(ctx, args).await
         }
-        AuthCommands::List => list_command(ctx, output).await,
-        AuthCommands::Remove { name } => remove_command(ctx, name, output).await,
-        AuthCommands::Renew { name } => renew_command(ctx, name, output).await,
+        AuthCommands::List => list_command(ctx).await,
+        AuthCommands::Remove { name } => remove_command(ctx, name).await,
+        AuthCommands::Renew { name } => renew_command(ctx, name).await,
     }
 }

@@ -1,13 +1,14 @@
-use crate::common::create_output_with_logging;
-use crate::output::Output;
 use std::sync::{Arc, Mutex};
+
 use tenx_mcp::{
-    Error, Result, Server, ServerConn, ServerCtx,
     schema::{
         ClientCapabilities, ClientNotification, Cursor, Implementation, InitializeResult,
         ListToolsResult, ServerCapabilities, Tool, ToolInputSchema,
     },
+    Error, Result, Server, ServerConn, ServerCtx,
 };
+
+use crate::{ctx::create_output_with_logging, output::Output};
 
 /// A test server connection that logs all interactions verbosely
 #[derive(Clone)]
