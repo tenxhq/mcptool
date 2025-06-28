@@ -44,46 +44,32 @@ impl Ctx {
     }
 }
 
-pub fn init_logging(level: Option<Level>) -> Output {
-    let output = Output::new();
-
-    let env_filter = match level {
-        Some(Level::ERROR) => EnvFilter::try_new("error").unwrap_or_default(),
-        Some(Level::WARN) => EnvFilter::try_new("warn").unwrap_or_default(),
-        Some(Level::INFO) => EnvFilter::try_new("info").unwrap_or_default(),
-        Some(Level::DEBUG) => EnvFilter::try_new("debug").unwrap_or_default(),
-        Some(Level::TRACE) => EnvFilter::try_new("trace").unwrap_or_default(),
-        None => EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::try_new("info").unwrap()),
-    };
-
-    let output_layer = OutputLayer::new(output.clone());
-
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(output_layer)
-        .init();
-
-    output
-}
-
 pub fn create_output_with_logging(
     logs: Option<Option<String>>,
 ) -> Result<Output, Box<dyn std::error::Error>> {
+    let output = Output::new();
+
     if let Some(log_level) = logs {
         let level = match log_level.as_deref() {
-            Some("error") => Some(Level::ERROR),
-            Some("warn") => Some(Level::WARN),
-            Some("info") => Some(Level::INFO),
-            Some("debug") => Some(Level::DEBUG),
-            Some("trace") => Some(Level::TRACE),
+            Some("error") => Level::ERROR,
+            Some("warn") => Level::WARN,
+            Some("info") => Level::INFO,
+            Some("debug") => Level::DEBUG,
+            Some("trace") => Level::TRACE,
             Some(other) => {
                 return Err(format!("Invalid log level: {other}").into());
             }
-            None => Some(Level::INFO), // Default to INFO if --logs is used without a level
+            None => Level::INFO, // Default to INFO if --logs is used without a level
         };
-        Ok(init_logging(level))
-    } else {
-        Ok(Output::new())
+
+        let env_filter = EnvFilter::try_new(level.as_str()).unwrap_or_default();
+        let output_layer = OutputLayer::new(output.clone());
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(output_layer)
+            .init();
     }
+
+    Ok(output)
 }
