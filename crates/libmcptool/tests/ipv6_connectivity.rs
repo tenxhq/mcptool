@@ -90,7 +90,10 @@ fn test_port_only_format() {
     // Test that ::1 is not confused with port-only format
     let result = Target::parse("::1");
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), "Port is required for TCP targets");
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Invalid format: Port is required for TCP targets"
+    );
 }
 
 #[test]

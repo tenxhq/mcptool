@@ -1,3 +1,4 @@
+use crate::{Error, Result};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,7 +11,7 @@ pub enum Target {
 }
 
 impl Target {
-    pub fn parse(input: &str) -> Result<Self, String> {
+    pub fn parse(input: &str) -> Result<Self> {
         if let Some(remainder) = input.strip_prefix("tcp://") {
             Self::parse_tcp(remainder)
         } else if let Some(remainder) = input.strip_prefix("cmd://") {
@@ -27,9 +28,9 @@ impl Target {
         }
     }
 
-    fn parse_tcp(input: &str) -> Result<Self, String> {
+    fn parse_tcp(input: &str) -> Result<Self> {
         if input.is_empty() {
-            return Err("Empty host specification".to_string());
+            return Err(Error::Format("Empty host specification".to_string()));
         }
 
         // Handle port-only format (e.g., ":8080")
@@ -37,11 +38,11 @@ impl Target {
         if input.starts_with(':') && !input.starts_with("::") {
             let port_str = &input[1..];
             if port_str.is_empty() {
-                return Err("Empty port specification".to_string());
+                return Err(Error::Format("Empty port specification".to_string()));
             }
             let port = port_str
                 .parse::<u16>()
-                .map_err(|_| format!("Invalid port: {port_str}"))?;
+                .map_err(|_| Error::Format(format!("Invalid port: {port_str}")))?;
             return Ok(Target::Tcp {
                 host: "0.0.0.0".to_string(),
                 port,
@@ -55,17 +56,21 @@ impl Target {
                 let remainder = &input[end + 1..];
 
                 if remainder.is_empty() {
-                    return Err("Port is required for TCP targets".to_string());
+                    return Err(Error::Format(
+                        "Port is required for TCP targets".to_string(),
+                    ));
                 } else if let Some(port_str) = remainder.strip_prefix(':') {
                     let port = port_str
                         .parse::<u16>()
-                        .map_err(|_| format!("Invalid port: {port_str}"))?;
+                        .map_err(|_| Error::Format(format!("Invalid port: {port_str}")))?;
                     return Ok(Target::Tcp { host, port });
                 } else {
-                    return Err("Invalid character after IPv6 address".to_string());
+                    return Err(Error::Format(
+                        "Invalid character after IPv6 address".to_string(),
+                    ));
                 }
             } else {
-                return Err("Unclosed IPv6 address bracket".to_string());
+                return Err(Error::Format("Unclosed IPv6 address bracket".to_string()));
             }
         }
 
@@ -77,31 +82,35 @@ impl Target {
             // Check if this might be part of an IPv6 address without brackets
             if host.contains(':') {
                 // This is likely an IPv6 address without brackets and no port
-                Err("Port is required for TCP targets".to_string())
+                Err(Error::Format(
+                    "Port is required for TCP targets".to_string(),
+                ))
             } else if port_str.is_empty() {
-                Err("Empty port specification".to_string())
+                Err(Error::Format("Empty port specification".to_string()))
             } else {
                 let port = port_str
                     .parse::<u16>()
-                    .map_err(|_| format!("Invalid port: {port_str}"))?;
+                    .map_err(|_| Error::Format(format!("Invalid port: {port_str}")))?;
                 Ok(Target::Tcp { host, port })
             }
         } else {
-            Err("Port is required for TCP targets".to_string())
+            Err(Error::Format(
+                "Port is required for TCP targets".to_string(),
+            ))
         }
     }
 
-    fn parse_stdio(input: &str) -> Result<Self, String> {
+    fn parse_stdio(input: &str) -> Result<Self> {
         if input.is_empty() {
-            return Err("Empty command specification".to_string());
+            return Err(Error::Format("Empty command specification".to_string()));
         }
 
         // Simple shell-like parsing
-        let parts =
-            shell_words::split(input).map_err(|e| format!("Failed to parse command: {e}"))?;
+        let parts = shell_words::split(input)
+            .map_err(|e| Error::Format(format!("Failed to parse command: {e}")))?;
 
         if parts.is_empty() {
-            return Err("Empty command after parsing".to_string());
+            return Err(Error::Format("Empty command after parsing".to_string()));
         }
 
         let command = parts[0].clone();
@@ -110,20 +119,20 @@ impl Target {
         Ok(Target::Stdio { command, args })
     }
 
-    fn parse_http(input: &str) -> Result<Self, String> {
+    fn parse_http(input: &str) -> Result<Self> {
         Self::parse_http_common(input, 80, |host, port| Target::Http { host, port })
     }
 
-    fn parse_https(input: &str) -> Result<Self, String> {
+    fn parse_https(input: &str) -> Result<Self> {
         Self::parse_http_common(input, 443, |host, port| Target::Https { host, port })
     }
 
-    fn parse_http_common<F>(input: &str, default_port: u16, constructor: F) -> Result<Self, String>
+    fn parse_http_common<F>(input: &str, default_port: u16, constructor: F) -> Result<Self>
     where
         F: Fn(String, u16) -> Target,
     {
         if input.is_empty() {
-            return Err("Empty host specification".to_string());
+            return Err(Error::Format("Empty host specification".to_string()));
         }
 
         // Handle IPv6 addresses in brackets
@@ -137,13 +146,15 @@ impl Target {
                 } else if let Some(port_str) = remainder.strip_prefix(':') {
                     let port = port_str
                         .parse::<u16>()
-                        .map_err(|_| format!("Invalid port: {port_str}"))?;
+                        .map_err(|_| Error::Format(format!("Invalid port: {port_str}")))?;
                     return Ok(constructor(host, port));
                 } else {
-                    return Err("Invalid character after IPv6 address".to_string());
+                    return Err(Error::Format(
+                        "Invalid character after IPv6 address".to_string(),
+                    ));
                 }
             } else {
-                return Err("Unclosed IPv6 address bracket".to_string());
+                return Err(Error::Format("Unclosed IPv6 address bracket".to_string()));
             }
         }
 
@@ -157,11 +168,11 @@ impl Target {
                 // This is likely an IPv6 address without brackets and no port
                 Ok(constructor(input.to_string(), default_port))
             } else if port_str.is_empty() {
-                Err("Empty port specification".to_string())
+                Err(Error::Format("Empty port specification".to_string()))
             } else {
                 let port = port_str
                     .parse::<u16>()
-                    .map_err(|_| format!("Invalid port: {port_str}"))?;
+                    .map_err(|_| Error::Format(format!("Invalid port: {port_str}")))?;
                 Ok(constructor(host, port))
             }
         } else {
@@ -170,13 +181,13 @@ impl Target {
         }
     }
 
-    fn parse_auth(input: &str) -> Result<Self, String> {
+    fn parse_auth(input: &str) -> Result<Self> {
         if input.is_empty() {
-            return Err("Empty auth name".to_string());
+            return Err(Error::Format("Empty auth name".to_string()));
         }
 
         // Validate the auth name using the shared validation function
-        crate::auth::validate_auth_name(input).map_err(|e| e.to_string())?;
+        crate::auth::validate_auth_name(input)?;
 
         Ok(Target::Auth {
             name: input.to_string(),
@@ -241,11 +252,15 @@ impl fmt::Display for Target {
 mod tests {
     use super::*;
 
+    fn format_err(msg: &str) -> Error {
+        Error::Format(msg.to_string())
+    }
+
     #[test]
     fn test_target_parsing() {
         struct TestCase {
             input: &'static str,
-            expected: Result<Target, &'static str>,
+            expected: Result<Target>,
             description: &'static str,
         }
 
@@ -253,7 +268,7 @@ mod tests {
             // Implicit TCP
             TestCase {
                 input: "example.com",
-                expected: Err("Port is required for TCP targets"),
+                expected: Err(format_err("Port is required for TCP targets")),
                 description: "implicit TCP without port",
             },
             TestCase {
@@ -292,7 +307,7 @@ mod tests {
             // Explicit TCP
             TestCase {
                 input: "tcp://example.com",
-                expected: Err("Port is required for TCP targets"),
+                expected: Err(format_err("Port is required for TCP targets")),
                 description: "explicit TCP without port",
             },
             TestCase {
@@ -306,7 +321,7 @@ mod tests {
             // IPv6
             TestCase {
                 input: "[::1]",
-                expected: Err("Port is required for TCP targets"),
+                expected: Err(format_err("Port is required for TCP targets")),
                 description: "IPv6 localhost without port",
             },
             TestCase {
@@ -327,12 +342,12 @@ mod tests {
             },
             TestCase {
                 input: "::1",
-                expected: Err("Port is required for TCP targets"),
+                expected: Err(format_err("Port is required for TCP targets")),
                 description: "IPv6 without brackets (no port)",
             },
             TestCase {
                 input: "2001:db8::1",
-                expected: Err("Port is required for TCP targets"),
+                expected: Err(format_err("Port is required for TCP targets")),
                 description: "IPv6 address without brackets",
             },
             // Stdio
@@ -372,42 +387,42 @@ mod tests {
             // Error cases
             TestCase {
                 input: "",
-                expected: Err("Empty host specification"),
+                expected: Err(format_err("Empty host specification")),
                 description: "empty input",
             },
             TestCase {
                 input: "tcp://",
-                expected: Err("Empty host specification"),
+                expected: Err(format_err("Empty host specification")),
                 description: "TCP scheme without host",
             },
             TestCase {
                 input: "cmd://",
-                expected: Err("Empty command specification"),
+                expected: Err(format_err("Empty command specification")),
                 description: "stdio scheme without command",
             },
             TestCase {
                 input: "example.com:",
-                expected: Err("Empty port specification"),
+                expected: Err(format_err("Empty port specification")),
                 description: "host with colon but no port",
             },
             TestCase {
                 input: "example.com:abc",
-                expected: Err("Invalid port: abc"),
+                expected: Err(format_err("Invalid port: abc")),
                 description: "invalid port (not a number)",
             },
             TestCase {
                 input: "example.com:99999",
-                expected: Err("Invalid port: 99999"),
+                expected: Err(format_err("Invalid port: 99999")),
                 description: "port out of range",
             },
             TestCase {
                 input: "[::1",
-                expected: Err("Unclosed IPv6 address bracket"),
+                expected: Err(format_err("Unclosed IPv6 address bracket")),
                 description: "unclosed IPv6 bracket",
             },
             TestCase {
                 input: "[::1]x",
-                expected: Err("Invalid character after IPv6 address"),
+                expected: Err(format_err("Invalid character after IPv6 address")),
                 description: "invalid character after IPv6",
             },
             // HTTP tests
@@ -508,48 +523,48 @@ mod tests {
             },
             TestCase {
                 input: "auth://my-oauth-service",
-                expected: Err("MCP error: Authentication name 'my-oauth-service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"),
+                expected: Err(format_err("Authentication name 'my-oauth-service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)")),
                 description: "Auth with hyphenated name (invalid)",
             },
             TestCase {
                 input: "auth://my:service",
-                expected: Err("MCP error: Authentication name 'my:service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"),
+                expected: Err(format_err("Authentication name 'my:service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)")),
                 description: "Auth with colon (invalid)",
             },
             TestCase {
                 input: "auth://my/service",
-                expected: Err("MCP error: Authentication name 'my/service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"),
+                expected: Err(format_err("Authentication name 'my/service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)")),
                 description: "Auth with slash (invalid)",
             },
             TestCase {
                 input: "auth://",
-                expected: Err("Empty auth name"),
+                expected: Err(format_err("Empty auth name")),
                 description: "Auth scheme without name",
             },
             // HTTP/HTTPS error cases
             TestCase {
                 input: "http://",
-                expected: Err("Empty host specification"),
+                expected: Err(format_err("Empty host specification")),
                 description: "HTTP scheme without host",
             },
             TestCase {
                 input: "https://",
-                expected: Err("Empty host specification"),
+                expected: Err(format_err("Empty host specification")),
                 description: "HTTPS scheme without host",
             },
             TestCase {
                 input: "http://example.com:",
-                expected: Err("Empty port specification"),
+                expected: Err(format_err("Empty port specification")),
                 description: "HTTP with colon but no port",
             },
             TestCase {
                 input: "https://example.com:abc",
-                expected: Err("Invalid port: abc"),
+                expected: Err(format_err("Invalid port: abc")),
                 description: "HTTPS invalid port",
             },
             TestCase {
                 input: "http://[::1",
-                expected: Err("Unclosed IPv6 address bracket"),
+                expected: Err(format_err("Unclosed IPv6 address bracket")),
                 description: "HTTP unclosed IPv6 bracket",
             },
         ];
@@ -563,11 +578,13 @@ mod tests {
                         test_case.input, test_case.description
                     );
                 }
-                (Err(expected_msg), Err(actual_err)) => {
+                (Err(expected_err), Err(actual_err)) => {
                     assert_eq!(
-                        *expected_msg, &actual_err,
+                        expected_err.to_string(),
+                        actual_err.to_string(),
                         "Failed for '{}': {}",
-                        test_case.input, test_case.description
+                        test_case.input,
+                        test_case.description
                     );
                 }
                 (Ok(_), Err(e)) => {

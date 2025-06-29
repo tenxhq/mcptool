@@ -13,13 +13,13 @@ use crate::{Error, Result};
 /// Validates that an auth name contains only alphanumeric characters and underscores
 pub fn validate_auth_name(name: &str) -> Result<()> {
     if name.is_empty() {
-        return Err(Error::Other(
+        return Err(Error::Format(
             "Authentication name cannot be empty".to_string(),
         ));
     }
 
     if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(Error::Other(format!(
+        return Err(Error::Format(format!(
             "Authentication name '{name}' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"
         )));
     }

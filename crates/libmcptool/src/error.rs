@@ -30,6 +30,10 @@ pub enum Error {
     #[error("MCP client error: {0}")]
     MpcClient(#[from] tenx_mcp::Error),
 
+    /// Format errors for invalid user input.
+    #[error("Invalid format: {0}")]
+    Format(String),
+
     /// Errors that should be rare, and are not expected to be handled by the user.
     #[error("MCP error: {0}")]
     Internal(String),

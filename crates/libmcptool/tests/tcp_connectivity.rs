@@ -159,7 +159,12 @@ async fn test_verify_port_is_actually_open() {
     assert_eq!(&buf[..n], b"PORT_IS_OPEN");
 
     // Test 2: Try a definitely closed port - should fail
-    let closed_port_addr = format!("127.0.0.1:{}", open_port_addr.port() + 1000);
+    let closed_port = if open_port_addr.port() < 64535 {
+        open_port_addr.port() + 1000
+    } else {
+        open_port_addr.port() - 1000
+    };
+    let closed_port_addr = format!("127.0.0.1:{closed_port}");
     let result = TcpStream::connect(&closed_port_addr).await;
     assert!(result.is_err(), "Should fail to connect to closed port");
 
