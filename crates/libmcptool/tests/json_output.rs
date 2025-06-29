@@ -29,12 +29,12 @@ fn test_list_tools_result_json_output() {
     };
 
     // Test JSON output
-    let json_output = Output::new(false).with_json(true);
+    let json_output = Output::new(false, 80).with_json(true);
     let result = json_output.list_tools_result(&tools_result);
     assert!(result.is_ok());
 
     // Test text output
-    let text_output = Output::new(true).with_json(false);
+    let text_output = Output::new(true, 80).with_json(false);
     let result = text_output.list_tools_result(&tools_result);
     assert!(result.is_ok());
 }
@@ -48,12 +48,12 @@ fn test_list_tools_result_empty_tools() {
     };
 
     // Test JSON output with empty tools
-    let json_output = Output::new(false).with_json(true);
+    let json_output = Output::new(false, 80).with_json(true);
     let result = json_output.list_tools_result(&tools_result);
     assert!(result.is_ok());
 
     // Test text output with empty tools
-    let text_output = Output::new(true).with_json(false);
+    let text_output = Output::new(true, 80).with_json(false);
     let result = text_output.list_tools_result(&tools_result);
     assert!(result.is_ok());
 }
@@ -61,12 +61,12 @@ fn test_list_tools_result_empty_tools() {
 #[test]
 fn test_ping_output() {
     // Test JSON output
-    let json_output = Output::new(false).with_json(true);
+    let json_output = Output::new(false, 80).with_json(true);
     let result = json_output.ping();
     assert!(result.is_ok());
 
     // Test text output
-    let text_output = Output::new(true).with_json(false);
+    let text_output = Output::new(true, 80).with_json(false);
     let result = text_output.ping();
     assert!(result.is_ok());
 }

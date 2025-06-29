@@ -7,7 +7,6 @@ use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use terminal_size::{terminal_size, Width};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
@@ -101,19 +100,22 @@ pub struct Output {
     stdout: Arc<Mutex<StandardStream>>,
     json: bool,
     color: bool,
+    width: usize,
 }
 
 impl Output {
-    pub fn new(color: bool) -> Self {
+    pub fn new(color: bool, width: usize) -> Self {
         let color_choice = if color {
             ColorChoice::Always
         } else {
             ColorChoice::Never
         };
+
         Self {
             stdout: Arc::new(Mutex::new(StandardStream::stdout(color_choice))),
             json: false,
             color,
+            width,
         }
     }
 
@@ -193,26 +195,10 @@ impl Output {
         let message = message.into();
         let mut stdout = self.stdout.lock().unwrap();
 
-        // Get terminal width, default to 80 if unable to detect
-        let width = if let Some((Width(w), _)) = terminal_size() {
-            w as usize
-        } else {
-            80
-        };
-
-        // Calculate padding needed
+        // Create left-aligned header with padding to fill the width
         let message_with_spaces = format!(" {message} ");
-        let padding = width.saturating_sub(message_with_spaces.len());
-        let left_pad = padding / 2;
-        let right_pad = padding - left_pad;
-
-        // Create the full-width header
-        let header = format!(
-            "{}{}{}",
-            " ".repeat(left_pad),
-            message_with_spaces,
-            " ".repeat(right_pad)
-        );
+        let padding = self.width.saturating_sub(message_with_spaces.len());
+        let header = format!("{}{}", message_with_spaces, " ".repeat(padding));
 
         // Set lighter content text on dark background for better readability
         stdout.set_color(
@@ -310,16 +296,12 @@ impl Output {
         } else {
             // Output as formatted text
             if tools_result.tools.is_empty() {
-                self.text("No tools available from this server.")?;
+                self.text("No tools.")?;
             } else {
-                self.heading(format!("Available tools ({}):", tools_result.tools.len()))?;
+                self.heading(format!("Tools ({}):", tools_result.tools.len()))?;
                 self.text("")?;
                 for tool in &tools_result.tools {
                     self.text(format!("  - {}", tool.name))?;
-
-                    self.text("")?;
-                    self.text("    Description:")?;
-                    self.text("")?;
                     match &tool.description {
                         Some(description) => {
                             for line in description.lines() {
@@ -386,7 +368,7 @@ impl Default for Output {
     fn default() -> Self {
         // Default to color detection based on TTY
         let color = atty::is(atty::Stream::Stdout);
-        Self::new(color)
+        Self::new(color, 80)
     }
 }
 

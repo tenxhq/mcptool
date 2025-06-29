@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 use libmcptool::{auth, client, connect, ctx, mcp, proxy, target::Target, testserver, LogLevel};
+use terminal_size::{terminal_size, Width};
 
 #[derive(Args)]
 struct TargetArgs {
@@ -192,8 +193,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         atty::is(atty::Stream::Stdout)
     };
 
+    // Detect terminal width, default to 80
+    let width = if let Some((Width(w), _)) = terminal_size() {
+        w as usize
+    } else {
+        80
+    };
+
     // Create the MCPTool instance
-    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json, color)?;
+    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json, color, width)?;
 
     match cli.command {
         Commands::Version => {

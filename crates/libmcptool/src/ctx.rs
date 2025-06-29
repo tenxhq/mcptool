@@ -30,8 +30,11 @@ impl Ctx {
         logs: Option<LogLevel>,
         json: bool,
         color: bool,
+        width: usize,
     ) -> Result<Self> {
-        let output = Output::new(color).with_json(json).with_logging(logs)?;
+        let output = Output::new(color, width)
+            .with_json(json)
+            .with_logging(logs)?;
 
         Ok(Self {
             config_path,
