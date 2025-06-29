@@ -2205,6 +2205,7 @@ dependencies = [
  "serde_json",
  "shell-words",
  "syntect",
+ "tempfile",
  "tenx-mcp",
  "termcolor",
  "terminal_size",

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod initresult;
 pub mod listtools;
 
 use std::io::{self, Write};
