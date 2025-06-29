@@ -35,7 +35,7 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                         break;
                     }
                     "help" => {
-                        ctx.output.heading("Available commands")?;
+                        ctx.output.h1("Available commands")?;
                         ctx.output
                             .text("  ping      - Send a ping request to the server")?;
                         ctx.output

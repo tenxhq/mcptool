@@ -26,7 +26,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     validate_auth_name(&name)?;
 
     ctx.output
-        .heading(format!("Adding OAuth authentication entry: {name}"))?;
+        .h1(format!("Adding OAuth authentication entry: {name}"))?;
 
     // Check if entry already exists
     let storage = ctx.storage()?;
@@ -104,7 +104,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     // If user just wants to see the redirect URL, show it and exit
     if args.show_redirect_url {
         ctx.output.text("")?;
-        ctx.output.heading("OAuth Redirect URL Information")?;
+        ctx.output.h1("OAuth Redirect URL Information")?;
         ctx.output
             .text(format!("Redirect URL that will be used: {redirect_url}"))?;
         ctx.output.text("")?;
@@ -145,7 +145,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     let (auth_url_with_params, csrf_token) = oauth_client.get_authorization_url();
 
     ctx.output.text("")?;
-    ctx.output.heading("Authorization required")?;
+    ctx.output.h1("Authorization required")?;
     ctx.output
         .text("Please visit the following URL to authorize the application:")?;
     ctx.output.text("")?;

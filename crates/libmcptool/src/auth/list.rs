@@ -15,7 +15,7 @@ pub async fn list_command(ctx: &Ctx) -> Result<()> {
     }
 
     ctx.output
-        .heading(format!("Authentication entries ({}):", auths.len()))?;
+        .h1(format!("Authentication entries ({}):", auths.len()))?;
     ctx.output.text("")?;
 
     // Find the maximum lengths for formatting

@@ -9,7 +9,7 @@ use crate::{ctx::Ctx, Error, Result};
 
 pub async fn renew_command(ctx: &Ctx, name: String) -> Result<()> {
     ctx.output
-        .heading(format!("Renewing OAuth authentication: {name}"))?;
+        .h1(format!("Renewing OAuth authentication: {name}"))?;
 
     let storage = ctx.storage()?;
     let mut auth = storage.get_auth(&name)?;

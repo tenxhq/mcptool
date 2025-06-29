@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use tenx_mcp::{
     schema::{
         ClientCapabilities, ClientNotification, Cursor, Implementation, InitializeResult,
-        ListToolsResult, ServerCapabilities, Tool, ToolInputSchema,
+        ListToolsResult, ServerCapabilities, Tool, ToolSchema,
     },
     Error, Result, Server, ServerConn, ServerCtx,
 };
@@ -28,19 +28,17 @@ impl TestServerConn {
     fn log_request(&self, method: &str, params: &str) {
         let mut counter = self.request_counter.lock().unwrap();
         *counter += 1;
-        let _ = self
-            .output
-            .heading(format!("request #{counter} - {method}"));
+        let _ = self.output.h1(format!("request #{counter} - {method}"));
         let _ = self.output.text(format!("parameters: {params}"));
     }
 
     fn log_response(&self, method: &str, response: &str) {
-        let _ = self.output.heading(format!("response - {method}"));
+        let _ = self.output.h1(format!("response - {method}"));
         let _ = self.output.text(format!("result: {response}"));
     }
 
     fn log_notification(&self, notification: &str) {
-        let _ = self.output.heading("notification");
+        let _ = self.output.h1("notification");
         let _ = self.output.text(format!("content: {notification}"));
     }
 }
@@ -113,7 +111,7 @@ impl ServerConn for TestServerConn {
 
         let echo_tool = Tool::new(
             "echo",
-            ToolInputSchema::default()
+            ToolSchema::default()
                 .with_property(
                     "message",
                     serde_json::json!({
@@ -180,7 +178,7 @@ impl ServerConn for TestServerConn {
 
 pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
     let output = &ctx.output;
-    let _ = output.heading("mcptool testserver");
+    let _ = output.h1("mcptool testserver");
     let _ = output.text(format!("Version: {}", env!("CARGO_PKG_VERSION")));
     let _ = output.text(format!(
         "Protocol: {}",

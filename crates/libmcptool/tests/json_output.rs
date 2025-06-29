@@ -14,7 +14,7 @@ fn test_list_tools_result_json_output() {
         }),
     );
 
-    let input_schema = tenx_mcp::schema::ToolInputSchema {
+    let input_schema = tenx_mcp::schema::ToolSchema {
         schema_type: "object".to_string(),
         properties: Some(properties),
         required: Some(vec!["param1".to_string()]),

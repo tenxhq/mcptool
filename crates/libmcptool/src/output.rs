@@ -7,6 +7,7 @@ use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use textwrap::{wrap, Options};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
@@ -101,6 +102,7 @@ pub struct Output {
     json: bool,
     color: bool,
     width: usize,
+    indent: usize,
 }
 
 impl Output {
@@ -116,6 +118,7 @@ impl Output {
             json: false,
             color,
             width,
+            indent: 0,
         }
     }
 
@@ -170,11 +173,73 @@ impl Output {
         Ok(self)
     }
 
+    /// Return a copy of this Output with indent incremented by 4 spaces.
+    pub fn indent(&self) -> Self {
+        let mut output = self.clone();
+        output.indent += 4;
+        output
+    }
+
+    /// Helper method to write a line with proper indentation and text wrapping.
+    fn write_block(&self, message: &str) -> io::Result<()> {
+        let mut stdout = self.stdout.lock().unwrap();
+        let indent_str = " ".repeat(self.indent);
+
+        // Calculate available width for text (total width minus indent)
+        let available_width = self.width.saturating_sub(self.indent);
+
+        // If available width is too small, just use basic wrapping
+        if available_width < 10 {
+            writeln!(stdout, "{indent_str}{message}")
+        } else {
+            // Use textwrap to wrap the text properly
+            let options = Options::new(available_width)
+                .initial_indent("")
+                .subsequent_indent("");
+
+            let wrapped_lines = wrap(message, &options);
+
+            for line in wrapped_lines {
+                writeln!(stdout, "{indent_str}{line}")?;
+            }
+            Ok(())
+        }
+    }
+
+    /// Helper method to write a line with proper indentation, text wrapping, and color.
+    fn write_block_with_color(&self, message: &str, color_spec: &ColorSpec) -> io::Result<()> {
+        let mut stdout = self.stdout.lock().unwrap();
+        let indent_str = " ".repeat(self.indent);
+
+        // Calculate available width for text (total width minus indent)
+        let available_width = self.width.saturating_sub(self.indent);
+
+        stdout.set_color(color_spec)?;
+
+        // If available width is too small, just use basic wrapping
+        if available_width < 10 {
+            writeln!(stdout, "{indent_str}{message}")?;
+        } else {
+            // Use textwrap to wrap the text properly
+            let options = Options::new(available_width)
+                .initial_indent("")
+                .subsequent_indent("");
+
+            let wrapped_lines = wrap(message, &options);
+
+            for line in wrapped_lines {
+                writeln!(stdout, "{indent_str}{line}")?;
+            }
+        }
+
+        stdout.reset()?;
+        stdout.flush()
+    }
+
     /// Raw output that is not affected by output settings
     fn raw(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
-        let mut stdout = self.stdout.lock().unwrap();
-        writeln!(stdout, "{message}")
+        self.write_block(&message)
     }
 
     pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
@@ -183,34 +248,71 @@ impl Output {
         }
 
         let message = message.into();
-        let mut stdout = self.stdout.lock().unwrap();
-        writeln!(stdout, "{message}")
+        self.write_block(&message)
     }
 
-    pub fn heading(&self, message: impl Into<String>) -> io::Result<()> {
+    pub fn h1(&self, message: impl Into<String>) -> io::Result<()> {
         if self.json {
             return Ok(());
         }
 
         let message = message.into();
-        let mut stdout = self.stdout.lock().unwrap();
 
-        // Create left-aligned header with padding to fill the width
+        // Create left-aligned header with padding to fill the FULL width (including indent)
+        // The header background should span the entire terminal width
         let message_with_spaces = format!(" {message} ");
-        let padding = self.width.saturating_sub(message_with_spaces.len());
-        let header = format!("{}{}", message_with_spaces, " ".repeat(padding));
+        let indent_str = " ".repeat(self.indent);
+        let total_content_length = self.indent + message_with_spaces.len();
+        let padding = self.width.saturating_sub(total_content_length);
+        let header = format!(
+            "{}{}{}",
+            indent_str,
+            message_with_spaces,
+            " ".repeat(padding)
+        );
 
         // Set lighter content text on dark background for better readability
-        stdout.set_color(
-            ColorSpec::new()
-                .set_fg(Some(SOLARIZED_BASE1))
-                .set_bg(Some(SOLARIZED_BASE02))
-                .set_bold(true),
-        )?;
-        write!(stdout, "{header}")?;
+        let color_spec = ColorSpec::new()
+            .set_fg(Some(SOLARIZED_BASE1))
+            .set_bg(Some(SOLARIZED_BASE02))
+            .set_bold(true)
+            .clone();
+
+        // Write directly to stdout with color, bypassing write_block to avoid double indentation
+        let mut stdout = self.stdout.lock().unwrap();
+        stdout.set_color(&color_spec)?;
+        writeln!(stdout, "{header}")?;
         stdout.reset()?;
-        writeln!(stdout)?;
         stdout.flush()
+    }
+
+    pub fn h2(&self, message: impl Into<String>) -> io::Result<()> {
+        if self.json {
+            return Ok(());
+        }
+
+        let message = message.into();
+
+        // Use highlighted foreground color without background
+        let color_spec = ColorSpec::new()
+            .set_fg(Some(SOLARIZED_BLUE))
+            .set_bold(true)
+            .clone();
+
+        self.write_block_with_color(&message, &color_spec)
+    }
+
+    pub fn h3(&self, message: impl Into<String>) -> io::Result<()> {
+        if self.json {
+            return Ok(());
+        }
+
+        let message = message.into();
+
+        // Just bold text, no color change
+        let color_spec = ColorSpec::new().set_bold(true).clone();
+
+        self.write_block_with_color(&message, &color_spec)
     }
 
     pub fn warn(&self, message: impl Into<String>) -> io::Result<()> {
@@ -242,7 +344,7 @@ impl Output {
         }
 
         let message = message.into();
-        let mut stdout = self.stdout.lock().unwrap();
+        let formatted_message = format!("{prefix} {message}");
 
         let mut color_spec = ColorSpec::new();
         color_spec.set_fg(Some(color));
@@ -250,15 +352,12 @@ impl Output {
             color_spec.set_bold(true);
         }
 
-        stdout.set_color(&color_spec)?;
-        writeln!(stdout, "{prefix} {message}")?;
-        stdout.reset()?;
-        stdout.flush()
+        self.write_block_with_color(&formatted_message, &color_spec)
     }
 
     pub fn trace(&self, message: impl Into<String>, level: Level) -> io::Result<()> {
         let message = message.into();
-        let mut stdout = self.stdout.lock().unwrap();
+        let formatted_message = format!("trace: {message}");
 
         let mut color_spec = ColorSpec::new();
         match level {
@@ -279,10 +378,7 @@ impl Output {
             }
         };
 
-        stdout.set_color(&color_spec)?;
-        writeln!(stdout, "trace: {message}")?;
-        stdout.reset()?;
-        stdout.flush()
+        self.write_block_with_color(&formatted_message, &color_spec)
     }
 
     pub fn list_tools_result(
@@ -298,56 +394,118 @@ impl Output {
             if tools_result.tools.is_empty() {
                 self.text("No tools.")?;
             } else {
-                self.heading(format!("Tools ({}):", tools_result.tools.len()))?;
-                self.text("")?;
+                self.h1("Tools")?;
+
+                let out = self.indent();
                 for tool in &tools_result.tools {
-                    self.text(format!("  - {}", tool.name))?;
-                    match &tool.description {
-                        Some(description) => {
-                            for line in description.lines() {
-                                self.text(format!("      {line}"))?;
+                    out.h2(&tool.name)?;
+
+                    // Description
+                    if let Some(description) = &tool.description {
+                        let out = out.indent();
+                        for line in description.lines() {
+                            out.text(line)?;
+                        }
+                    }
+                    out.text("")?;
+
+                    // Annotations
+                    if let Some(annotations) = &tool.annotations {
+                        let out = out.indent();
+                        out.h2("Annotations")?;
+                        let out = out.indent();
+                        if let Some(title) = &annotations.title {
+                            out.text(format!("title: {title}"))?;
+                        }
+                    }
+
+                    // Input arguments
+                    if let Some(properties) = &tool.input_schema.properties {
+                        if !properties.is_empty() {
+                            let out = out.indent();
+                            out.h2("Input")?;
+                            let out = out.indent();
+                            out.toolschema(&tool.input_schema)?;
+                        }
+                    }
+
+                    // Output schema
+                    if let Some(output_schema) = &tool.output_schema {
+                        if let Some(properties) = &output_schema.properties {
+                            if !properties.is_empty() {
+                                let out = out.indent();
+                                out.h2("Output")?;
+                                let out = out.indent();
+                                out.toolschema(output_schema)?;
                             }
                         }
-                        None => self.text("      No description available")?,
                     }
 
-                    self.text("")?;
-                    self.text("    Annotations:")?;
-                    self.text("")?;
-                    match &tool.annotations {
-                        Some(annotations) => {
-                            self.text(format!("      {:?}", annotations.title))?;
+                    out.text("")?; // Extra blank line between tools
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn toolschema(&self, schema: &tenx_mcp::schema::ToolSchema) -> Result<()> {
+        if let Some(properties) = &schema.properties {
+            if !properties.is_empty() {
+                // Sort properties to show required ones first
+                let mut sorted_props: Vec<_> = properties.iter().collect();
+                sorted_props.sort_by(|(a_name, _), (b_name, _)| {
+                    let a_required = schema.is_required(a_name);
+                    let b_required = schema.is_required(b_name);
+
+                    // Required fields come first
+                    b_required.cmp(&a_required).then(a_name.cmp(b_name))
+                });
+
+                for (name, prop_schema) in sorted_props {
+                    let is_required = schema.is_required(name);
+
+                    // Extract type from schema
+                    let type_str = if let Some(serde_json::Value::String(t)) =
+                        prop_schema.get("type")
+                    {
+                        t.to_string()
+                    } else if let Some(serde_json::Value::Array(types)) = prop_schema.get("type") {
+                        // Handle union types like ["string", "null"]
+                        types
+                            .iter()
+                            .filter_map(|v| v.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" | ")
+                    } else {
+                        "unknown".to_string()
+                    };
+
+                    let required_text = if is_required { " (required)" } else { "" };
+                    self.h3(format!("{name}: {type_str}{required_text}"))?;
+
+                    // Show schema details indented further
+                    let out = self.indent();
+
+                    // Make a mutable copy of the schema
+                    let mut schema_copy = prop_schema.clone();
+
+                    // Remove type since we already displayed it
+                    if let Some(obj) = schema_copy.as_object_mut() {
+                        obj.remove("type");
+
+                        // Extract and display description if it exists
+                        if let Some(serde_json::Value::String(desc)) = obj.remove("description") {
+                            out.text(&desc)?;
                         }
-                        None => self.text("      No annotations available")?,
-                    }
 
-                    self.text("")?;
-                    self.text("    Input arguments:")?;
-                    self.text("")?;
-
-                    // TODO Show required inputs first?
-                    match &tool.input_schema.properties {
-                        Some(properties) => {
-                            for (name, schema) in properties {
-                                let rendered_schema = serde_json::to_string_pretty(schema)?;
-                                let is_required = &tool
-                                    .clone()
-                                    .input_schema
-                                    .required
-                                    .is_some_and(|list| list.contains(name));
-                                self.text(format!("      {name} - (required: {is_required})"))?;
-                                self.text("")?;
-
-                                for line in rendered_schema.lines() {
-                                    self.text(format!("        {line}"))?;
-                                }
-                                self.text("")?;
+                        // If there are remaining properties, display them as JSON
+                        if !obj.is_empty() {
+                            let rendered_schema = serde_json::to_string_pretty(&schema_copy)?;
+                            for line in rendered_schema.lines() {
+                                out.text(line)?;
                             }
                         }
-                        None => self.text("      No input schema available")?,
                     }
-
-                    self.text("")?; // Extra blank line between tools
                 }
             }
         }

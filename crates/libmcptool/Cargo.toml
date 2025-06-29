@@ -32,6 +32,7 @@ anyhow = "1.0.98"
 clap = { version = "4.5", features = ["derive"] }
 syntect = "5.2"
 atty = "0.2"
+textwrap = "0.16"
 
 [build-dependencies]
 anyhow = "1.0.98"
