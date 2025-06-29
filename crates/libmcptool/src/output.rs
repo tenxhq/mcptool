@@ -64,28 +64,32 @@ impl std::str::FromStr for LogLevel {
     }
 }
 
-// Solarized Dark color scheme constants
-// Background tones
-const SOLARIZED_BASE03: Color = Color::Rgb(0, 43, 54); // darkest background
-const SOLARIZED_BASE02: Color = Color::Rgb(7, 54, 66); // dark background
-const SOLARIZED_BASE01: Color = Color::Rgb(88, 110, 117); // darker content
-const SOLARIZED_BASE00: Color = Color::Rgb(101, 123, 131); // dark content
+/// Solarized Dark color scheme
+struct SolarizedDark;
 
-// Content tones
-const SOLARIZED_BASE0: Color = Color::Rgb(131, 148, 150); // light content
-const SOLARIZED_BASE1: Color = Color::Rgb(147, 161, 161); // lighter content
-const SOLARIZED_BASE2: Color = Color::Rgb(238, 232, 213); // light background
-const SOLARIZED_BASE3: Color = Color::Rgb(253, 246, 227); // lightest background
+impl SolarizedDark {
+    // Background tones
+    const BASE03: Color = Color::Rgb(0, 43, 54); // darkest background
+    const BASE02: Color = Color::Rgb(7, 54, 66); // dark background
+    const BASE01: Color = Color::Rgb(88, 110, 117); // darker content
+    const BASE00: Color = Color::Rgb(101, 123, 131); // dark content
 
-// Accent colors
-const SOLARIZED_YELLOW: Color = Color::Rgb(181, 137, 0);
-const SOLARIZED_ORANGE: Color = Color::Rgb(203, 75, 22);
-const SOLARIZED_RED: Color = Color::Rgb(220, 50, 47);
-const SOLARIZED_MAGENTA: Color = Color::Rgb(211, 54, 130);
-const SOLARIZED_VIOLET: Color = Color::Rgb(108, 113, 196);
-const SOLARIZED_BLUE: Color = Color::Rgb(38, 139, 210);
-const SOLARIZED_CYAN: Color = Color::Rgb(42, 161, 152);
-const SOLARIZED_GREEN: Color = Color::Rgb(133, 153, 0);
+    // Content tones
+    const BASE0: Color = Color::Rgb(131, 148, 150); // light content
+    const BASE1: Color = Color::Rgb(147, 161, 161); // lighter content
+    const BASE2: Color = Color::Rgb(238, 232, 213); // light background
+    const BASE3: Color = Color::Rgb(253, 246, 227); // lightest background
+
+    // Accent colors
+    const YELLOW: Color = Color::Rgb(181, 137, 0);
+    const ORANGE: Color = Color::Rgb(203, 75, 22);
+    const RED: Color = Color::Rgb(220, 50, 47);
+    const MAGENTA: Color = Color::Rgb(211, 54, 130);
+    const VIOLET: Color = Color::Rgb(108, 113, 196);
+    const BLUE: Color = Color::Rgb(38, 139, 210);
+    const CYAN: Color = Color::Rgb(42, 161, 152);
+    const GREEN: Color = Color::Rgb(133, 153, 0);
+}
 
 /// Handles all output formatting for the application.
 ///
@@ -180,59 +184,53 @@ impl Output {
         output
     }
 
+    /// Helper to wrap text with a specific indentation
+    fn wrap_text(
+        &self,
+        text: &str,
+        available_width: usize,
+        initial_indent: &str,
+        subsequent_indent: &str,
+    ) -> Vec<String> {
+        if available_width < 10 {
+            // If width is too small, just return the lines as-is
+            text.lines().map(|s| s.to_string()).collect()
+        } else {
+            let options = Options::new(available_width)
+                .initial_indent(initial_indent)
+                .subsequent_indent(subsequent_indent);
+            wrap(text, &options)
+                .into_iter()
+                .map(|cow| cow.into_owned())
+                .collect()
+        }
+    }
+
     /// Helper method to write a line with proper indentation and text wrapping.
     fn write_block(&self, message: &str) -> io::Result<()> {
-        let mut stdout = self.stdout.lock().unwrap();
-        let indent_str = " ".repeat(self.indent);
-
-        // Calculate available width for text (total width minus indent)
-        let available_width = self.width.saturating_sub(self.indent);
-
-        // If available width is too small, just use basic wrapping
-        if available_width < 10 {
-            writeln!(stdout, "{indent_str}{message}")
-        } else {
-            // Use textwrap to wrap the text properly
-            let options = Options::new(available_width)
-                .initial_indent("")
-                .subsequent_indent("");
-
-            let wrapped_lines = wrap(message, &options);
-
-            for line in wrapped_lines {
-                writeln!(stdout, "{indent_str}{line}")?;
-            }
-            Ok(())
-        }
+        self.write_block_with_color(message, &ColorSpec::new())
     }
 
     /// Helper method to write a line with proper indentation, text wrapping, and color.
     fn write_block_with_color(&self, message: &str, color_spec: &ColorSpec) -> io::Result<()> {
         let mut stdout = self.stdout.lock().unwrap();
         let indent_str = " ".repeat(self.indent);
-
-        // Calculate available width for text (total width minus indent)
         let available_width = self.width.saturating_sub(self.indent);
 
-        stdout.set_color(color_spec)?;
+        let wrapped_lines = self.wrap_text(message, available_width, "", "");
+        let has_color = color_spec != &ColorSpec::new();
 
-        // If available width is too small, just use basic wrapping
-        if available_width < 10 {
-            writeln!(stdout, "{indent_str}{message}")?;
-        } else {
-            // Use textwrap to wrap the text properly
-            let options = Options::new(available_width)
-                .initial_indent("")
-                .subsequent_indent("");
-
-            let wrapped_lines = wrap(message, &options);
-
-            for line in wrapped_lines {
-                writeln!(stdout, "{indent_str}{line}")?;
+        for line in wrapped_lines {
+            if has_color {
+                stdout.set_color(color_spec)?;
             }
+            write!(stdout, "{indent_str}{line}")?;
+            if has_color {
+                stdout.reset()?;
+            }
+            writeln!(stdout)?;
         }
 
-        stdout.reset()?;
         stdout.flush()
     }
 
@@ -248,7 +246,11 @@ impl Output {
         }
 
         let message = message.into();
-        self.write_block(&message)
+
+        // Use SOLARIZED_BASE0 for regular text
+        let color_spec = ColorSpec::new().set_fg(Some(SolarizedDark::BASE0)).clone();
+
+        self.write_block_with_color(&message, &color_spec)
     }
 
     pub fn h1(&self, message: impl Into<String>) -> io::Result<()> {
@@ -273,8 +275,8 @@ impl Output {
 
         // Set lighter content text on dark background for better readability
         let color_spec = ColorSpec::new()
-            .set_fg(Some(SOLARIZED_BASE1))
-            .set_bg(Some(SOLARIZED_BASE02))
+            .set_fg(Some(SolarizedDark::BASE0))
+            .set_bg(Some(SolarizedDark::BASE02))
             .set_bold(true)
             .clone();
 
@@ -295,7 +297,7 @@ impl Output {
 
         // Use highlighted foreground color without background
         let color_spec = ColorSpec::new()
-            .set_fg(Some(SOLARIZED_BLUE))
+            .set_fg(Some(SolarizedDark::BLUE))
             .set_bold(true)
             .clone();
 
@@ -316,19 +318,32 @@ impl Output {
     }
 
     pub fn warn(&self, message: impl Into<String>) -> io::Result<()> {
-        self.status(message, "[WARNING]", SOLARIZED_YELLOW, false)
+        self.status(message, "[WARNING]", SolarizedDark::YELLOW, false)
     }
 
     pub fn error(&self, message: impl Into<String>) -> io::Result<()> {
-        self.status(message, "[ERROR]", SOLARIZED_RED, true)
+        self.status(message, "[ERROR]", SolarizedDark::RED, true)
     }
 
     pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
-        self.status(message, "[OK]", SOLARIZED_GREEN, false)
+        self.status(message, "[OK]", SolarizedDark::GREEN, false)
     }
 
     pub fn debug(&self, message: impl Into<String>) -> io::Result<()> {
-        self.status(message, "[DEBUG]", SOLARIZED_MAGENTA, false)
+        self.status(message, "[DEBUG]", SolarizedDark::MAGENTA, false)
+    }
+
+    pub fn note(&self, message: impl Into<String>) -> io::Result<()> {
+        if self.json {
+            return Ok(());
+        }
+
+        let message = message.into();
+
+        // Use SOLARIZED_YELLOW for notes
+        let color_spec = ColorSpec::new().set_fg(Some(SolarizedDark::YELLOW)).clone();
+
+        self.write_block_with_color(&message, &color_spec)
     }
 
     // Helper method to reduce repetition
@@ -362,19 +377,19 @@ impl Output {
         let mut color_spec = ColorSpec::new();
         match level {
             Level::ERROR => {
-                color_spec.set_fg(Some(SOLARIZED_RED)).set_bold(true);
+                color_spec.set_fg(Some(SolarizedDark::RED)).set_bold(true);
             }
             Level::WARN => {
-                color_spec.set_fg(Some(SOLARIZED_YELLOW));
+                color_spec.set_fg(Some(SolarizedDark::YELLOW));
             }
             Level::INFO => {
-                color_spec.set_fg(Some(SOLARIZED_BASE0)); // Light content color
+                color_spec.set_fg(Some(SolarizedDark::BASE0)); // Light content color
             }
             Level::DEBUG => {
-                color_spec.set_fg(Some(SOLARIZED_MAGENTA));
+                color_spec.set_fg(Some(SolarizedDark::MAGENTA));
             }
             Level::TRACE => {
-                color_spec.set_fg(Some(SOLARIZED_BASE01)); // Darker content for trace
+                color_spec.set_fg(Some(SolarizedDark::BASE01)); // Darker content for trace
             }
         };
 
@@ -394,15 +409,14 @@ impl Output {
             if tools_result.tools.is_empty() {
                 self.text("No tools.")?;
             } else {
-                self.h1("Tools")?;
-
-                let out = self.indent();
                 for tool in &tools_result.tools {
-                    out.h2(&tool.name)?;
+                    self.h1(&tool.name)?;
+                    self.text("")?; // Extra blank line between tools
+
+                    let out = self.indent();
 
                     // Description
                     if let Some(description) = &tool.description {
-                        let out = out.indent();
                         for line in description.lines() {
                             out.text(line)?;
                         }
@@ -415,7 +429,7 @@ impl Output {
                         out.h2("Annotations")?;
                         let out = out.indent();
                         if let Some(title) = &annotations.title {
-                            out.text(format!("title: {title}"))?;
+                            out.kv("title", title)?;
                         }
                     }
 
@@ -441,7 +455,7 @@ impl Output {
                         }
                     }
 
-                    out.text("")?; // Extra blank line between tools
+                    self.text("")?; // Extra blank line between tools
                 }
             }
         }
@@ -480,11 +494,16 @@ impl Output {
                         "unknown".to_string()
                     };
 
-                    let required_text = if is_required { " (required)" } else { "" };
-                    self.h3(format!("{name}: {type_str}{required_text}"))?;
+                    // Use kv() to display property name and type
+                    self.kv(name, &type_str)?;
 
                     // Show schema details indented further
                     let out = self.indent();
+
+                    // Show required marker on separate line if required
+                    if is_required {
+                        out.note("[required]")?;
+                    }
 
                     // Make a mutable copy of the schema
                     let mut schema_copy = prop_schema.clone();
@@ -510,6 +529,64 @@ impl Output {
             }
         }
         Ok(())
+    }
+
+    pub fn kv(&self, key: impl Into<String>, value: impl Into<String>) -> io::Result<()> {
+        if self.json {
+            return Ok(());
+        }
+
+        let key = key.into();
+        let value = value.into();
+
+        let mut stdout = self.stdout.lock().unwrap();
+        let indent_str = " ".repeat(self.indent);
+
+        // Write key with color
+        let key_color_spec = ColorSpec::new()
+            .set_fg(Some(SolarizedDark::CYAN))
+            .set_bold(true)
+            .clone();
+
+        stdout.set_color(&key_color_spec)?;
+        write!(stdout, "{indent_str}{key}: ")?;
+        stdout.reset()?;
+
+        // Calculate indentation for wrapped value lines
+        let key_prefix_len = self.indent + key.len() + 2; // +2 for ": "
+        let available_width = self.width.saturating_sub(key_prefix_len);
+        let value_indent = " ".repeat(key_prefix_len);
+        let value_color_spec = ColorSpec::new().set_fg(Some(SolarizedDark::BASE0)).clone();
+
+        // Handle simple single-line case
+        if value.len() <= available_width && !value.contains('\n') {
+            stdout.set_color(&value_color_spec)?;
+            write!(stdout, "{value}")?;
+            stdout.reset()?;
+            writeln!(stdout)?;
+        } else {
+            // Multi-line or long value
+            let lines: Vec<&str> = value.lines().collect();
+
+            for (idx, line) in lines.iter().enumerate() {
+                let wrapped = if idx == 0 {
+                    // First line - no initial indent since it follows the key
+                    self.wrap_text(line, available_width, "", &value_indent)
+                } else {
+                    // Subsequent lines - indent to align under the value
+                    self.wrap_text(line, available_width, &value_indent, &value_indent)
+                };
+
+                for wrapped_line in wrapped {
+                    stdout.set_color(&value_color_spec)?;
+                    write!(stdout, "{wrapped_line}")?;
+                    stdout.reset()?;
+                    writeln!(stdout)?;
+                }
+            }
+        }
+
+        stdout.flush()
     }
 
     pub fn ping(&self) -> Result<()> {
