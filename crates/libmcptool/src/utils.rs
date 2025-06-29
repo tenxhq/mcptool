@@ -3,19 +3,25 @@ use std::fmt::Display;
 use std::future::Future;
 use std::time::Instant;
 
+use crate::output::Output;
+
 #[async_trait]
 pub trait TimedFuture: Future + Sized {
-    async fn timed<S: AsRef<str> + Display + Send>(self, title: S) -> Self::Output {
+    async fn timed<S: AsRef<str> + Display + Send>(
+        self,
+        title: S,
+        output: &Output,
+    ) -> Self::Output {
         let start = Instant::now();
-        let output = self.await;
+        let result = self.await;
 
-        println!(
+        let _ = output.text(format!(
             "{} in {:.2}ms",
             title,
             start.elapsed().as_secs_f64() * 1000.0,
-        );
+        ));
 
-        output
+        result
     }
 }
 

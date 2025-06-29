@@ -25,7 +25,7 @@ pub async fn get_client(
             // For other targets, connect directly without auth
             ctx.output.text(format!("Connecting to {target}"))?;
             connect_to_server(target)
-                .timed("Connected and initialized")
+                .timed("Connected and initialized", &ctx.output)
                 .await
         }
     }

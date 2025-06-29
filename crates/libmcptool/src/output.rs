@@ -127,15 +127,21 @@ impl Output {
         Ok(self)
     }
 
-    pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
+    /// Raw output that is not affected by output settings
+    fn raw(&self, message: impl Into<String>) -> io::Result<()> {
         let message = message.into();
         let mut stdout = self.stdout.lock().unwrap();
+        writeln!(stdout, "{message}")
+    }
 
-        if !self.json {
-            stdout.reset()?;
+    pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
+        if self.json {
+            return Ok(());
         }
-        writeln!(stdout, "{message}")?;
-        stdout.flush()
+
+        let message = message.into();
+        let mut stdout = self.stdout.lock().unwrap();
+        writeln!(stdout, "{message}")
     }
 
     pub fn heading(&self, message: impl Into<String>) -> io::Result<()> {
@@ -259,7 +265,7 @@ impl Output {
         if self.json {
             // Output as JSON
             let json = serde_json::to_string_pretty(tools_result)?;
-            self.text(json)?;
+            self.raw(json)?;
         } else {
             // Output as formatted text
             if tools_result.tools.is_empty() {
