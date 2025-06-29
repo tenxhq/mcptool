@@ -8,42 +8,27 @@ use crate::{
 pub async fn get_client(
     ctx: &Ctx,
     target: &Target,
-    auth: Option<String>,
 ) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult)> {
-    if let Some(auth_name) = auth {
-        connect_with_auth(ctx, target, &auth_name).await
-    } else {
-        connect_to_server(target)
-            .timed("Connected and initialized")
-            .await
-    }
-}
-
-pub fn resolve_target(
-    ctx: &Ctx,
-    target: Option<String>,
-    auth_name: &Option<String>,
-) -> Result<Target> {
-    match (target, auth_name) {
-        (Some(t), _) => {
-            // Target provided, parse it
-            Ok(Target::parse(&t)?)
-        }
-        (None, Some(auth)) => {
-            // No target but auth provided, get URL from auth
+    match target {
+        Target::Auth { name } => {
+            // For auth:// targets, resolve to the actual target and connect with auth
             let storage = ctx.storage()?;
-            let auth_entry = storage.get_auth(auth)?;
+            let auth_entry = storage.get_auth(name)?;
 
             ctx.output.text(format!(
                 "Using server URL from auth '{}': {}",
-                auth, auth_entry.server_url
+                name, auth_entry.server_url
             ))?;
 
-            Ok(Target::parse(&auth_entry.server_url)?)
+            let resolved_target = Target::parse(&auth_entry.server_url)?;
+            connect_with_auth(ctx, &resolved_target, name).await
         }
-        (None, None) => Err(Error::Other(
-            "No target specified. Either provide a target URL or use --auth".to_string(),
-        )),
+        _ => {
+            // For other targets, connect directly without auth
+            connect_to_server(target)
+                .timed("Connected and initialized")
+                .await
+        }
     }
 }
 

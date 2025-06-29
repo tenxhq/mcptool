@@ -6,6 +6,7 @@ pub enum Target {
     Stdio { command: String, args: Vec<String> },
     Http { host: String, port: u16 },
     Https { host: String, port: u16 },
+    Auth { name: String },
 }
 
 impl Target {
@@ -18,6 +19,8 @@ impl Target {
             Self::parse_https(remainder)
         } else if let Some(remainder) = input.strip_prefix("http://") {
             Self::parse_http(remainder)
+        } else if let Some(remainder) = input.strip_prefix("auth://") {
+            Self::parse_auth(remainder)
         } else {
             // Implicit TCP
             Self::parse_tcp(input)
@@ -166,6 +169,15 @@ impl Target {
             Ok(constructor(input.to_string(), default_port))
         }
     }
+
+    fn parse_auth(input: &str) -> Result<Self, String> {
+        if input.is_empty() {
+            return Err("Empty auth name".to_string());
+        }
+        Ok(Target::Auth {
+            name: input.to_string(),
+        })
+    }
 }
 
 impl fmt::Display for Target {
@@ -213,6 +225,9 @@ impl fmt::Display for Target {
                 } else {
                     write!(f, "https://{host}:{port}")
                 }
+            }
+            Target::Auth { name } => {
+                write!(f, "auth://{name}")
             }
         }
     }
@@ -465,6 +480,26 @@ mod tests {
                 }),
                 description: "HTTPS with IPv6 and custom port",
             },
+            // Auth tests
+            TestCase {
+                input: "auth://myservice",
+                expected: Ok(Target::Auth {
+                    name: "myservice".to_string(),
+                }),
+                description: "Auth with simple name",
+            },
+            TestCase {
+                input: "auth://my-oauth-service",
+                expected: Ok(Target::Auth {
+                    name: "my-oauth-service".to_string(),
+                }),
+                description: "Auth with hyphenated name",
+            },
+            TestCase {
+                input: "auth://",
+                expected: Err("Empty auth name"),
+                description: "Auth scheme without name",
+            },
             // HTTP/HTTPS error cases
             TestCase {
                 input: "http://",
@@ -639,6 +674,21 @@ mod tests {
                 },
                 expected: "https://[2001:db8::1]:8443",
                 description: "HTTPS IPv6 with custom port",
+            },
+            // Auth display tests
+            TestCase {
+                target: Target::Auth {
+                    name: "myservice".to_string(),
+                },
+                expected: "auth://myservice",
+                description: "Auth with simple name",
+            },
+            TestCase {
+                target: Target::Auth {
+                    name: "my-oauth-service".to_string(),
+                },
+                expected: "auth://my-oauth-service",
+                description: "Auth with hyphenated name",
             },
         ];
 

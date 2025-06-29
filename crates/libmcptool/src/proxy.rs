@@ -91,6 +91,12 @@ pub async fn proxy_command(target: Target, log_file: PathBuf) -> Result<()> {
                 "HTTP/HTTPS connections are not yet supported for proxy".to_string(),
             ));
         }
+        Target::Auth { .. } => {
+            return Err(Error::Other(
+                "Auth targets should be resolved to actual targets before calling proxy_command"
+                    .to_string(),
+            ));
+        }
     }
 
     Ok(())

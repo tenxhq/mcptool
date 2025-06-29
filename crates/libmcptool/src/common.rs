@@ -49,6 +49,11 @@ pub async fn connect_to_server(target: &Target) -> Result<(Client<()>, Initializ
                 Error::Other(format!("Failed to connect to HTTPS endpoint {url}: {e}"))
             })?
         }
+        Target::Auth { .. } => {
+            return Err(Error::Other(
+                "Auth targets should be resolved to actual targets before calling connect_to_server".to_string()
+            ));
+        }
     };
 
     Ok((client, init_result))

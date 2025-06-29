@@ -19,18 +19,15 @@ struct ProxyArgs {
 
 #[derive(Args)]
 struct McpArgs {
-    /// Use a stored authentication entry
-    #[arg(long)]
-    auth: Option<String>,
+    // No longer needed - auth is now handled via auth:// target syntax
 }
 
 #[derive(Subcommand)]
 enum McpCommands {
     /// Send a ping request to an MCP server
     Ping {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port")
-        /// Optional when using --auth, will use the stored server URL
-        target: Option<String>,
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
 
         #[command(flatten)]
         mcp_args: McpArgs,
@@ -38,9 +35,8 @@ enum McpCommands {
 
     /// List all MCP tools from a server
     Listtools {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port")
-        /// Optional when using --auth, will use the stored server URL
-        target: Option<String>,
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
 
         #[command(flatten)]
         mcp_args: McpArgs,
@@ -141,13 +137,8 @@ enum Commands {
 
     /// Connect to an MCP server and start an interactive REPL
     Connect {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port")
-        /// Optional when using --auth, will use the stored server URL
-        target: Option<String>,
-
-        /// Use a stored authentication entry
-        #[arg(long)]
-        auth: Option<String>,
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
     },
 
     /// Transparently proxy and print traffic forwarded to the target
@@ -196,10 +187,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Mcp { command } => match command {
-            McpCommands::Ping { target, mcp_args } => {
-                let target = client::resolve_target(&ctx, target, &mcp_args.auth)?;
-                let (mut client, init_result) =
-                    client::get_client(&ctx, &target, mcp_args.auth).await?;
+            McpCommands::Ping {
+                target,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, init_result) = client::get_client(&ctx, &target).await?;
 
                 ctx.output.text(format!("Pinging {target}..."))?;
                 ctx.output.text(format!(
@@ -209,10 +202,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 mcp::ping(&mut client, &ctx.output).await?;
             }
-            McpCommands::Listtools { target, mcp_args } => {
-                let target = client::resolve_target(&ctx, target, &mcp_args.auth)?;
-                let (mut client, init_result) =
-                    client::get_client(&ctx, &target, mcp_args.auth).await?;
+            McpCommands::Listtools {
+                target,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, init_result) = client::get_client(&ctx, &target).await?;
 
                 ctx.output.text(format!("Listing tools from {target}..."))?;
                 ctx.output.text(format!(
@@ -224,8 +219,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
 
-        Commands::Connect { target, auth } => {
-            connect::connect_command(&ctx, target, auth).await?;
+        Commands::Connect { target } => {
+            connect::connect_command(&ctx, target).await?;
         }
 
         Commands::Proxy { proxy_args } => {

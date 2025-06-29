@@ -1,48 +1,13 @@
-use crate::common::connect_to_server;
 use rustyline::DefaultEditor;
 
-use crate::{client, ctx::Ctx, mcp, target::Target, Error, Result};
+use crate::{client, ctx::Ctx, mcp, target::Target, Result};
 
-pub async fn connect_command(
-    ctx: &Ctx,
-    target: Option<String>,
-    auth_name: Option<String>,
-) -> Result<()> {
-    // Determine the target to connect to
-    let (final_target, used_auth) = match (target, auth_name) {
-        (Some(t), auth) => {
-            // Target provided, parse it
-            let target = Target::parse(&t)?;
-            (target, auth)
-        }
-        (None, Some(auth)) => {
-            // No target but auth provided, get URL from auth
-            let storage = ctx.storage()?;
-            let auth_entry = storage.get_auth(&auth)?;
+pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
+    let target = Target::parse(&target)?;
 
-            ctx.output.text(format!(
-                "Using server URL from auth '{}': {}",
-                auth, auth_entry.server_url
-            ))?;
+    ctx.output.text(format!("Connecting to {target}..."))?;
 
-            let target = Target::parse(&auth_entry.server_url)?;
-            (target, Some(auth))
-        }
-        (None, None) => {
-            return Err(Error::Other(
-                "No target specified. Either provide a target URL or use --auth".to_string(),
-            ));
-        }
-    };
-
-    ctx.output
-        .text(format!("Connecting to {final_target}..."))?;
-
-    let (mut client, init_result) = if let Some(auth_name) = used_auth {
-        client::connect_with_auth(ctx, &final_target, &auth_name).await?
-    } else {
-        connect_to_server(&final_target).await?
-    };
+    let (mut client, init_result) = client::get_client(ctx, &target).await?;
 
     ctx.output.success(format!(
         "Connected to: {} v{}",

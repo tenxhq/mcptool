@@ -37,7 +37,7 @@ After installation the binary is available as `mcptool`. Use `--help` on any sub
 ### Target Specification
 
 Every sub‑command that expects a *target* accepts a TCP endpoint, HTTP/HTTPS endpoint,
-or a local command to be spawned in **stdio** mode.
+a local command to be spawned in **stdio** mode, or a stored authentication entry.
 
 | Variant                      | Syntax                    | What Happens                                                                                                        |
 | ---------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -46,6 +46,7 @@ or a local command to be spawned in **stdio** mode.
 | **HTTP**                     | `http://host[:port]`      | Connects via HTTP. If no port is given, defaults to port 80.                                                       |
 | **HTTPS**                    | `https://host[:port]`     | Connects via HTTPS. If no port is given, defaults to port 443.                                                     |
 | **Stdio Command**            | `cmd://<program> [args…]` | Spawns the program locally and speaks MCP over its STDIN/STDOUT pipes. Use quotes when the command contains spaces. |
+| **Authentication**           | `auth://<name>`           | Uses a stored authentication entry (see Authentication section below).                                              |
 
 > **Example targets**
 >
@@ -54,6 +55,7 @@ or a local command to be spawned in **stdio** mode.
 > * `http://api.acme.ai` (HTTP, port 80)
 > * `https://api.acme.ai:8443` (HTTPS, port 8443)
 > * `"cmd://./my‑stdio‑server --some --argument"` (local process)
+> * `auth://github` (stored authentication entry)
 
 ### Global Commands (run from your shell)
 
@@ -68,8 +70,6 @@ or a local command to be spawned in **stdio** mode.
 ### MCP Commands (usable inside the prompt *or* from the shell with a `<target>`)
 
 When you are **inside the prompt**, type these commands **without** the `mcptool` prefix and without a target. From the regular shell, prefix them with `mcptool mcp` and provide a `<target>`.
-
-All MCP commands support the `--auth` flag to use stored authentication credentials. When using `--auth`, the target is optional and will use the server URL from the auth entry.
 
 | Prompt form                                   | Shell form                                                     | Purpose                                                                                                                       |
 | --------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -100,6 +100,29 @@ summarize      translate      moderate
 > exit
 ```
 
+### Authentication
+
+Mcptool supports OAuth authentication for HTTP/HTTPS endpoints. Authentication entries can be managed using the `mcptool auth` commands:
+
+| Command                                      | Purpose                                                                                                                                |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcptool auth add <name> [options]`          | Add a new OAuth authentication entry with interactive setup                                                                            |
+| `mcptool auth list`                          | List all stored authentication entries                                                                                                 |
+| `mcptool auth remove <name>`                 | Remove an authentication entry                                                                                                         |
+| `mcptool auth renew <name>`                  | Renew the access token using the refresh token                                                                                         |
+
+Once an authentication entry is stored, you can use it with any MCP command by using the `auth://` target syntax:
+
+```bash
+# Add GitHub authentication
+mcptool auth add github
+
+# Use the stored authentication
+mcptool mcp ping auth://github
+mcptool mcp listtools auth://github
+mcptool connect auth://github
+```
+
 ### Examples
 
 ```bash
@@ -110,10 +133,10 @@ mcptool mcp ping api.acme.ai
 mcptool mcp ping "cmd://./my‑stdio‑server --some --argument"
 
 # Use stored authentication (e.g., for GitHub Copilot)
-mcptool mcp ping --auth github
+mcptool mcp ping auth://github
 
 # List tools using authentication
-mcptool mcp listtools --auth github
+mcptool mcp listtools auth://github
 
 # Connect via TCP on a non‑default port and immediately run a status query, then exit
 mcptool calltool tcp://dev.acme.ai:7780 -- status
