@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod listtools;
+
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use syntect::easy::HighlightLines;
@@ -103,7 +105,7 @@ impl SolarizedDark {
 #[derive(Clone)]
 pub struct Output {
     stdout: Arc<Mutex<StandardStream>>,
-    json: bool,
+    pub json: bool,
     color: bool,
     width: usize,
     indent: usize,
@@ -394,72 +396,6 @@ impl Output {
         };
 
         self.write_block_with_color(&formatted_message, &color_spec)
-    }
-
-    pub fn list_tools_result(
-        &self,
-        tools_result: &tenx_mcp::schema::ListToolsResult,
-    ) -> Result<()> {
-        if self.json {
-            // Output as JSON
-            let json = serde_json::to_string_pretty(tools_result)?;
-            self.output_json(&json)?;
-        } else {
-            // Output as formatted text
-            if tools_result.tools.is_empty() {
-                self.text("No tools.")?;
-            } else {
-                for tool in &tools_result.tools {
-                    self.h1(&tool.name)?;
-                    self.text("")?; // Extra blank line between tools
-
-                    let out = self.indent();
-
-                    // Description
-                    if let Some(description) = &tool.description {
-                        for line in description.lines() {
-                            out.text(line)?;
-                        }
-                    }
-                    out.text("")?;
-
-                    // Annotations
-                    if let Some(annotations) = &tool.annotations {
-                        let out = out.indent();
-                        out.h2("Annotations")?;
-                        let out = out.indent();
-                        if let Some(title) = &annotations.title {
-                            out.kv("title", title)?;
-                        }
-                    }
-
-                    // Input arguments
-                    if let Some(properties) = &tool.input_schema.properties {
-                        if !properties.is_empty() {
-                            let out = out.indent();
-                            out.h2("Input")?;
-                            let out = out.indent();
-                            out.toolschema(&tool.input_schema)?;
-                        }
-                    }
-
-                    // Output schema
-                    if let Some(output_schema) = &tool.output_schema {
-                        if let Some(properties) = &output_schema.properties {
-                            if !properties.is_empty() {
-                                let out = out.indent();
-                                out.h2("Output")?;
-                                let out = out.indent();
-                                out.toolschema(output_schema)?;
-                            }
-                        }
-                    }
-
-                    self.text("")?; // Extra blank line between tools
-                }
-            }
-        }
-        Ok(())
     }
 
     pub fn toolschema(&self, schema: &tenx_mcp::schema::ToolSchema) -> Result<()> {

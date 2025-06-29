@@ -237,7 +237,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 ctx.output.text(format!("Listing tools from {target}..."))?;
                 ctx.output.text(format!(
-                    "Connected to: {} v{}\n",
+                    "Connected to: {} v{}",
                     init_result.server_info.name, init_result.server_info.version
                 ))?;
 

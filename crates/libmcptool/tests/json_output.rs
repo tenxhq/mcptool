@@ -1,4 +1,4 @@
-use libmcptool::output::Output;
+use libmcptool::output::{listtools, Output};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -30,12 +30,12 @@ fn test_list_tools_result_json_output() {
 
     // Test JSON output
     let json_output = Output::new(false, 80).with_json(true);
-    let result = json_output.list_tools_result(&tools_result);
+    let result = listtools::list_tools_result(&json_output, &tools_result);
     assert!(result.is_ok());
 
     // Test text output
     let text_output = Output::new(true, 80).with_json(false);
-    let result = text_output.list_tools_result(&tools_result);
+    let result = listtools::list_tools_result(&text_output, &tools_result);
     assert!(result.is_ok());
 }
 
@@ -49,12 +49,12 @@ fn test_list_tools_result_empty_tools() {
 
     // Test JSON output with empty tools
     let json_output = Output::new(false, 80).with_json(true);
-    let result = json_output.list_tools_result(&tools_result);
+    let result = listtools::list_tools_result(&json_output, &tools_result);
     assert!(result.is_ok());
 
     // Test text output with empty tools
     let text_output = Output::new(true, 80).with_json(false);
-    let result = text_output.list_tools_result(&tools_result);
+    let result = listtools::list_tools_result(&text_output, &tools_result);
     assert!(result.is_ok());
 }
 
