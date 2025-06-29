@@ -22,3 +22,13 @@ pub fn init(init_result: &InitializeResult, output: &crate::output::Output) -> R
     output::initresult::init_result(output, init_result)?;
     Ok(())
 }
+
+pub async fn listresources(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
+    output.text("Listing resources")?;
+    let resources_result = client
+        .list_resources(None)
+        .timed("    response", output)
+        .await?;
+    output::listresources::list_resources_result(output, &resources_result)?;
+    Ok(())
+}

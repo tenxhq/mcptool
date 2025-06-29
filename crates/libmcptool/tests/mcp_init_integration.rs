@@ -36,7 +36,7 @@ async fn test_mcp_init_with_test_server() {
     {
         let output = Output::new(false, 80).with_json(true);
         let target =
-            Target::parse(&format!("http://127.0.0.1:{}", port)).expect("Failed to parse target");
+            Target::parse(&format!("http://127.0.0.1:{port}")).expect("Failed to parse target");
 
         let (_client, init_result) = libmcptool::client::connect_to_server(&target)
             .await
@@ -58,7 +58,7 @@ async fn test_mcp_init_with_test_server() {
     {
         let output = Output::new(false, 80).with_json(false);
         let target =
-            Target::parse(&format!("http://127.0.0.1:{}", port)).expect("Failed to parse target");
+            Target::parse(&format!("http://127.0.0.1:{port}")).expect("Failed to parse target");
 
         let (_client, init_result) = libmcptool::client::connect_to_server(&target)
             .await

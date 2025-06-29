@@ -51,6 +51,15 @@ enum McpCommands {
         #[command(flatten)]
         mcp_args: McpArgs,
     },
+
+    /// List all MCP resources from a server
+    Listresources {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -245,6 +254,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let target = Target::parse(&target)?;
                 let (_client, init_result) = client::get_client(&ctx, &target).await?;
                 mcp::init(&init_result, &ctx.output)?;
+            }
+            McpCommands::Listresources {
+                target,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::listresources(&mut client, &ctx.output).await?;
             }
         },
 
