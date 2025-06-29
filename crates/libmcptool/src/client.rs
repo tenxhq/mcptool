@@ -19,7 +19,9 @@ pub async fn get_client(
             ctx.output
                 .text(format!("Using auth {name} ({})", auth_entry.server_url))?;
             let resolved_target = Target::parse(&auth_entry.server_url)?;
-            connect_with_auth(ctx, &resolved_target, name).await
+            connect_with_auth(ctx, &resolved_target, name)
+                .timed("Connected and initialized", &ctx.output)
+                .await
         }
         _ => {
             // For other targets, connect directly without auth

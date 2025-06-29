@@ -218,14 +218,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 mcp_args: _,
             } => {
                 let target = Target::parse(&target)?;
-                let (mut client, init_result) = client::get_client(&ctx, &target).await?;
-
-                ctx.output.text(format!("Pinging {target}..."))?;
-                ctx.output.text(format!(
-                    "Server info: {} v{}",
-                    init_result.server_info.name, init_result.server_info.version
-                ))?;
-
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
                 mcp::ping(&mut client, &ctx.output).await?;
             }
             McpCommands::Listtools {
@@ -233,14 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 mcp_args: _,
             } => {
                 let target = Target::parse(&target)?;
-                let (mut client, init_result) = client::get_client(&ctx, &target).await?;
-
-                ctx.output.text(format!("Listing tools from {target}..."))?;
-                ctx.output.text(format!(
-                    "Connected to: {} v{}",
-                    init_result.server_info.name, init_result.server_info.version
-                ))?;
-
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
                 mcp::listtools(&mut client, &ctx.output).await?;
             }
         },
