@@ -25,8 +25,13 @@ pub struct Ctx {
 
 impl Ctx {
     /// Create a new MCPTool instance with the given configuration path
-    pub fn new(config_path: PathBuf, logs: Option<LogLevel>, json: bool) -> Result<Self> {
-        let output = Output::new(false).with_json(json).with_logging(logs)?;
+    pub fn new(
+        config_path: PathBuf,
+        logs: Option<LogLevel>,
+        json: bool,
+        color: bool,
+    ) -> Result<Self> {
+        let output = Output::new(color).with_json(json).with_logging(logs)?;
 
         Ok(Self {
             config_path,

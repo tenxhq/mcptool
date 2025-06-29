@@ -120,6 +120,14 @@ struct Cli {
     #[arg(long, global = true, value_enum)]
     logs: Option<LogLevel>,
 
+    /// Force color output
+    #[arg(long, global = true, conflicts_with = "no_color")]
+    color: bool,
+
+    /// Disable color output
+    #[arg(long, global = true, conflicts_with = "color")]
+    no_color: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -174,8 +182,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Failed to get config directory")?
         .join("mcptool");
 
+    // Determine color output preference
+    let color = if cli.no_color {
+        false
+    } else if cli.color {
+        true
+    } else {
+        // Auto-detect based on TTY
+        atty::is(atty::Stream::Stdout)
+    };
+
     // Create the MCPTool instance
-    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json)?;
+    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json, color)?;
 
     match cli.command {
         Commands::Version => {

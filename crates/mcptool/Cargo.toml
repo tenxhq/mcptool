@@ -31,6 +31,7 @@ url = "2.5"
 oauth2 = { version = "5.0", features = ["reqwest"] }
 reqwest = { version = "0.12", features = ["json"] }
 anyhow = "1.0.98"
+atty = "0.2"
 
 [build-dependencies]
 anyhow = "1.0.98"

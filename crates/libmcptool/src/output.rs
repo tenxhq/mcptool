@@ -2,6 +2,10 @@
 
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use terminal_size::{terminal_size, Width};
 use tracing::{Event, Level, Subscriber};
@@ -96,14 +100,51 @@ const SOLARIZED_GREEN: Color = Color::Rgb(133, 153, 0);
 pub struct Output {
     stdout: Arc<Mutex<StandardStream>>,
     json: bool,
+    color: bool,
 }
 
 impl Output {
-    pub fn new(json: bool) -> Self {
+    pub fn new(color: bool) -> Self {
+        let color_choice = if color {
+            ColorChoice::Always
+        } else {
+            ColorChoice::Never
+        };
         Self {
-            stdout: Arc::new(Mutex::new(StandardStream::stdout(ColorChoice::Auto))),
-            json,
+            stdout: Arc::new(Mutex::new(StandardStream::stdout(color_choice))),
+            json: false,
+            color,
         }
+    }
+
+    /// Output JSON with syntax highlighting if color is enabled
+    fn output_json(&self, json_str: &str) -> io::Result<()> {
+        if self.color {
+            // Load syntax highlighting assets
+            let ps = SyntaxSet::load_defaults_newlines();
+            let ts = ThemeSet::load_defaults();
+
+            let syntax = ps.find_syntax_by_extension("json").unwrap();
+            let theme = &ts.themes["Solarized (dark)"];
+            let mut h = HighlightLines::new(syntax, theme);
+            let mut stdout = self.stdout.lock().unwrap();
+            for line in LinesWithEndings::from(json_str) {
+                let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).unwrap();
+                let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
+                write!(stdout, "{escaped}")?;
+            }
+            stdout.reset()?;
+            stdout.flush()
+        } else {
+            self.raw(json_str)
+        }
+    }
+
+    /// Output a JSON value with syntax highlighting if appropriate
+    pub fn json_value<T: serde::Serialize>(&self, value: &T) -> Result<()> {
+        let json_str = serde_json::to_string_pretty(value)?;
+        self.output_json(&json_str)?;
+        Ok(())
     }
 
     /// Set JSON output mode.
@@ -265,7 +306,7 @@ impl Output {
         if self.json {
             // Output as JSON
             let json = serde_json::to_string_pretty(tools_result)?;
-            self.raw(json)?;
+            self.output_json(&json)?;
         } else {
             // Output as formatted text
             if tools_result.tools.is_empty() {
@@ -333,7 +374,7 @@ impl Output {
 
     pub fn ping(&self) -> Result<()> {
         if self.json {
-            self.text("{}")?;
+            self.output_json("{}")?;
         } else {
             self.success("Ping successful!")?;
         }
@@ -343,7 +384,9 @@ impl Output {
 
 impl Default for Output {
     fn default() -> Self {
-        Self::new(false)
+        // Default to color detection based on TTY
+        let color = atty::is(atty::Stream::Stdout);
+        Self::new(color)
     }
 }
 
