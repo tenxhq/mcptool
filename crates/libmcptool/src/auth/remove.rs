@@ -16,7 +16,7 @@ pub async fn remove_command(ctx: &Ctx, name: String) -> Result<()> {
 
     // Confirm removal
     ctx.output
-        .warn(format!("About to remove authentication entry '{name}'"))?;
+        .trace_warn(format!("About to remove authentication entry '{name}'"))?;
     ctx.output.text(format!("  Server: {}", auth.server_url))?;
     ctx.output
         .text(format!("  Client ID: {}", auth.client_id))?;
@@ -33,7 +33,7 @@ pub async fn remove_command(ctx: &Ctx, name: String) -> Result<()> {
     // Remove the entry
     storage.remove_auth(&name)?;
 
-    ctx.output.success(format!(
+    ctx.output.trace_success(format!(
         "Authentication entry '{name}' removed successfully."
     ))?;
 

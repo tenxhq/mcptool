@@ -10,107 +10,112 @@ pub fn init_result(
         // Output as JSON
         output.json_value(init_result)?;
     } else {
+        let title = format!(
+            "{} ({})",
+            &init_result.server_info.name, &init_result.server_info.version
+        );
+
         // Output as formatted text
-        output.h1("Server Information")?;
-        output.text("")?;
+        output.h1(title)?;
 
         let out = output.indent();
 
         // Protocol version
-        out.kv("Protocol Version", &init_result.protocol_version)?;
-
-        // Server info
-        out.text("")?;
-        out.h2("Server")?;
-        let out = out.indent();
-        out.kv("Name", &init_result.server_info.name)?;
-        out.kv("Version", &init_result.server_info.version)?;
+        out.kv("MCP Protocol Version", &init_result.protocol_version)?;
         if let Some(title) = &init_result.server_info.title {
             out.kv("Title", title)?;
         }
 
         // Server capabilities
-        out.text("")?;
         out.h2("Capabilities")?;
-        let out = out.indent();
+        {
+            let out = out.indent();
 
-        // Tools
-        if let Some(tools) = &init_result.capabilities.tools {
-            if tools.list_changed.unwrap_or(false) {
-                out.kv("Tools", "Supported (dynamic list)")?;
-            } else {
-                out.kv("Tools", "Supported")?;
-            }
-        } else {
-            out.kv("Tools", "Not supported")?;
-        }
+            let mut unsupported = Vec::new();
 
-        // Resources
-        if let Some(resources) = &init_result.capabilities.resources {
-            if resources.list_changed.unwrap_or(false) {
-                out.kv("Resources", "Supported (dynamic list)")?;
+            if let Some(tools) = &init_result.capabilities.tools {
+                out.success("tools")?;
+                if tools.list_changed.unwrap_or(false) {
+                    let out = out.indent();
+                    out.success("- list changed")?;
+                }
             } else {
-                out.kv("Resources", "Supported")?;
+                unsupported.push("tools");
             }
 
-            if resources.subscribe.unwrap_or(false) {
+            // Resources
+            if let Some(resources) = &init_result.capabilities.resources {
+                out.success("resources")?;
                 let out = out.indent();
-                out.text("• Subscriptions supported")?;
-            }
-        } else {
-            out.kv("Resources", "Not supported")?;
-        }
-
-        // Prompts
-        if let Some(prompts) = &init_result.capabilities.prompts {
-            if prompts.list_changed.unwrap_or(false) {
-                out.kv("Prompts", "Supported (dynamic list)")?;
+                if resources.list_changed.unwrap_or(false) {
+                    out.success("- list changed")?;
+                }
+                if resources.subscribe.unwrap_or(false) {
+                    out.success("- subscribe")?;
+                }
             } else {
-                out.kv("Prompts", "Supported")?;
+                unsupported.push("resources");
             }
-        } else {
-            out.kv("Prompts", "Not supported")?;
-        }
 
-        // Logging
-        if let Some(_logging) = &init_result.capabilities.logging {
-            out.kv("Logging", "Supported")?;
-        } else {
-            out.kv("Logging", "Not supported")?;
-        }
+            // Prompts
+            if let Some(prompts) = &init_result.capabilities.prompts {
+                out.success("prompts")?;
+                if prompts.list_changed.unwrap_or(false) {
+                    let out = out.indent();
+                    out.success("- list changed")?;
+                }
+            } else {
+                unsupported.push("prompts");
+            }
 
-        // Completions
-        if let Some(_completions) = &init_result.capabilities.completions {
-            out.kv("Completions", "Supported")?;
-        } else {
-            out.kv("Completions", "Not supported")?;
-        }
+            // Logging
+            if init_result.capabilities.logging.is_some() {
+                out.success("logging")?;
+            } else {
+                unsupported.push("logging");
+            }
 
-        // Experimental capabilities
-        if let Some(experimental) = &init_result.capabilities.experimental {
-            if !experimental.is_empty() {
-                out.text("")?;
-                out.h3("Experimental Features")?;
-                let out = out.indent();
-                for (key, value) in experimental {
-                    // Format the value as a pretty JSON string
-                    let value_str =
-                        serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string());
-                    out.kv(key, &value_str)?;
+            // Completions
+            if init_result.capabilities.completions.is_some() {
+                out.success("completions")?;
+            } else {
+                unsupported.push("completions");
+            }
+
+            // Display unsupported capabilities
+            if !unsupported.is_empty() {
+                let unsupported_str = unsupported
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                out.text(format!("unsupported: {unsupported_str}"))?;
+            }
+
+            // Experimental capabilities
+            if let Some(experimental) = &init_result.capabilities.experimental {
+                if !experimental.is_empty() {
+                    out.text("")?;
+                    out.h3("Experimental Features")?;
+                    let out = out.indent();
+                    for (key, value) in experimental {
+                        // Format the value as a pretty JSON string
+                        let value_str = serde_json::to_string_pretty(value)
+                            .unwrap_or_else(|_| value.to_string());
+                        out.kv(key, &value_str)?;
+                    }
                 }
             }
         }
 
         // Instructions (if present)
         if let Some(instructions) = &init_result.instructions {
-            out.text("")?;
             out.h2("Instructions")?;
             let out = out.indent();
             for line in instructions.lines() {
                 out.text(line)?;
             }
         }
-
         output.text("")?; // Extra blank line at the end
     }
     Ok(())

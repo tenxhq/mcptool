@@ -48,7 +48,7 @@ impl ServerConn for TestServerConn {
     async fn on_connect(&self, _context: &ServerCtx, remote_addr: &str) -> Result<()> {
         let _ = self
             .output
-            .success(format!("client connected from {remote_addr}"));
+            .trace_success(format!("client connected from {remote_addr}"));
         Ok(())
     }
 
@@ -197,14 +197,14 @@ pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
     } else {
         let addr = format!("127.0.0.1:{port}");
         let _ = output.text("Transport: HTTP");
-        let _ = output.success(format!("Listening on: http://{addr}"));
+        let _ = output.trace_success(format!("Listening on: http://{addr}"));
         let _ = output.text("Press Ctrl+C to stop the server");
 
         let handle = server.serve_http(&addr).await?;
 
         // Wait for Ctrl+C
         tokio::signal::ctrl_c().await.unwrap();
-        let _ = output.warn("Shutting down server...");
+        let _ = output.trace_warn("Shutting down server...");
         handle.stop().await?;
     }
 

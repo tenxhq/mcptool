@@ -15,15 +15,19 @@ async fn test_mcp_init_with_test_server() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("Failed to bind to local address");
-    let port = listener.local_addr().expect("Failed to get local address").port();
+    let port = listener
+        .local_addr()
+        .expect("Failed to get local address")
+        .port();
     drop(listener); // Release the port so test server can bind to it
 
     let (ctx, _temp_dir) = create_test_ctx();
-    
+
     // Spawn the test server in the background
-    let server_handle = tokio::spawn(async move {
-        libmcptool::testserver::run_test_server(&ctx, false, port).await
-    });
+    let server_handle =
+        tokio::spawn(
+            async move { libmcptool::testserver::run_test_server(&ctx, false, port).await },
+        );
 
     // Give the server time to start
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -31,7 +35,8 @@ async fn test_mcp_init_with_test_server() {
     // Test with JSON output
     {
         let output = Output::new(false, 80).with_json(true);
-        let target = Target::parse(&format!("http://127.0.0.1:{}", port)).expect("Failed to parse target");
+        let target =
+            Target::parse(&format!("http://127.0.0.1:{}", port)).expect("Failed to parse target");
 
         let (_client, init_result) = libmcptool::client::connect_to_server(&target)
             .await
@@ -43,13 +48,17 @@ async fn test_mcp_init_with_test_server() {
         // Verify basic fields
         assert_eq!(init_result.server_info.name, "mcptool-testserver");
         assert_eq!(init_result.server_info.version, "0.1.0");
-        assert_eq!(init_result.protocol_version, tenx_mcp::schema::LATEST_PROTOCOL_VERSION);
+        assert_eq!(
+            init_result.protocol_version,
+            tenx_mcp::schema::LATEST_PROTOCOL_VERSION
+        );
     }
 
     // Test with text output
     {
         let output = Output::new(false, 80).with_json(false);
-        let target = Target::parse(&format!("http://127.0.0.1:{}", port)).expect("Failed to parse target");
+        let target =
+            Target::parse(&format!("http://127.0.0.1:{}", port)).expect("Failed to parse target");
 
         let (_client, init_result) = libmcptool::client::connect_to_server(&target)
             .await
@@ -67,7 +76,7 @@ async fn test_mcp_init_with_test_server() {
 async fn test_mcp_init_output_format() {
     // This test verifies the init function handles both output modes correctly
     // We use a mock InitializeResult to avoid needing a real server
-    
+
     let init_result = tenx_mcp::schema::InitializeResult {
         protocol_version: "2025-06-18".to_string(),
         capabilities: tenx_mcp::schema::ServerCapabilities {
@@ -85,10 +94,13 @@ async fn test_mcp_init_output_format() {
             completions: Some(serde_json::Value::Object(serde_json::Map::new())),
             experimental: Some({
                 let mut map = std::collections::HashMap::new();
-                map.insert("custom_feature".to_string(), serde_json::json!({
-                    "enabled": true,
-                    "version": "1.0"
-                }));
+                map.insert(
+                    "custom_feature".to_string(),
+                    serde_json::json!({
+                        "enabled": true,
+                        "version": "1.0"
+                    }),
+                );
                 map
             }),
         },

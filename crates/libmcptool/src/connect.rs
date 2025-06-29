@@ -9,7 +9,7 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
 
     let (mut client, init_result) = client::get_client(ctx, &target).await?;
 
-    ctx.output.success(format!(
+    ctx.output.trace_success(format!(
         "Connected to: {} v{}",
         init_result.server_info.name, init_result.server_info.version
     ))?;
@@ -45,13 +45,15 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                     }
                     "ping" => match mcp::ping(&mut client, &ctx.output).await {
                         Ok(_) => {}
-                        Err(e) => ctx.output.error(format!("Ping failed: {e}"))?,
+                        Err(e) => ctx.output.trace_error(format!("Ping failed: {e}"))?,
                     },
                     "listtools" => match mcp::listtools(&mut client, &ctx.output).await {
                         Ok(_) => {}
-                        Err(e) => ctx.output.error(format!("Failed to list tools: {e}"))?,
+                        Err(e) => ctx
+                            .output
+                            .trace_error(format!("Failed to list tools: {e}"))?,
                     },
-                    _ => ctx.output.warn(format!(
+                    _ => ctx.output.trace_warn(format!(
                         "Unknown command: {line}. Type 'help' for available commands."
                     ))?,
                 }
@@ -65,7 +67,7 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                 break;
             }
             Err(err) => {
-                ctx.output.error(format!("Error: {err:?}"))?;
+                ctx.output.trace_error(format!("Error: {err:?}"))?;
                 break;
             }
         }

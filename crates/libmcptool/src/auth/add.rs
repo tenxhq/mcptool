@@ -95,8 +95,9 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
                 };
             let url = format!("http://127.0.0.1:{actual_port}/callback");
             ctx.output.text(format!("Using redirect URL: {url}"))?;
-            ctx.output
-                .warn("Note: This URL must be registered in your OAuth application settings!")?;
+            ctx.output.trace_warn(
+                "Note: This URL must be registered in your OAuth application settings!",
+            )?;
             (url, Some(actual_port))
         }
     };
@@ -155,13 +156,13 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     // Try to open browser
     match open::that(auth_url_with_params.as_str()) {
         Ok(_) => {
-            ctx.output.success("Browser opened successfully.")?;
+            ctx.output.trace_success("Browser opened successfully.")?;
             ctx.output
                 .text("If the browser didn't open, copy the URL above and paste it manually.")?;
         }
         Err(e) => {
             ctx.output
-                .warn(format!("Could not open browser automatically: {e}"))?;
+                .trace_warn(format!("Could not open browser automatically: {e}"))?;
             ctx.output
                 .text("Please copy the URL above and open it manually in your browser.")?;
 
@@ -196,7 +197,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
             }
             _ = tokio::signal::ctrl_c() => {
                 ctx.output.text("")?;
-                ctx.output.warn("Cancelled! Switching to manual mode...")?;
+                ctx.output.trace_warn("Cancelled! Switching to manual mode...")?;
                 timeout(
                     Duration::from_secs(300),
                     wait_for_manual_callback(&mut oauth_client, csrf_token.secret().to_string(), &ctx.output),
@@ -229,7 +230,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
             if error_msg.contains("redirect_uri") || error_msg.contains("redirect URL") {
                 ctx.output.text("")?;
                 ctx.output
-                    .error("OAuth Error: Redirect URL not registered")?;
+                    .trace_error("OAuth Error: Redirect URL not registered")?;
                 ctx.output
                     .text("The redirect URL is not associated with your OAuth application.")?;
                 ctx.output.text("")?;
@@ -248,7 +249,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
             {
                 ctx.output.text("")?;
                 ctx.output
-                    .error("OAuth Error: Invalid client credentials")?;
+                    .trace_error("OAuth Error: Invalid client credentials")?;
                 ctx.output
                     .text("The client_id and/or client_secret are incorrect.")?;
                 ctx.output.text("")?;
@@ -275,7 +276,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
         }
     };
 
-    ctx.output.success("Authorization successful!")?;
+    ctx.output.trace_success("Authorization successful!")?;
 
     // Convert token expiration from Instant to SystemTime
     let expires_at = token.expires_at.map(|instant| {
@@ -302,7 +303,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
 
     ctx.output.text("")?;
     ctx.output
-        .success(format!("Authentication entry '{name}' saved successfully!"))?;
+        .trace_success(format!("Authentication entry '{name}' saved successfully!"))?;
     ctx.output.text(format!(
         "You can now use: mcptool connect --auth {name} <target>"
     ))?;

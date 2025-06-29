@@ -279,15 +279,16 @@ impl Output {
         // Set lighter content text on dark background for better readability
         let color_spec = ColorSpec::new()
             .set_fg(Some(SolarizedDark::BASE0))
-            .set_bg(Some(SolarizedDark::BASE02))
+            .set_bg(Some(SolarizedDark::BASE03))
             .set_bold(true)
             .clone();
 
         // Write directly to stdout with color, bypassing write_block to avoid double indentation
         let mut stdout = self.stdout.lock().unwrap();
         stdout.set_color(&color_spec)?;
-        writeln!(stdout, "{header}")?;
+        write!(stdout, "{header}")?;
         stdout.reset()?;
+        writeln!(stdout)?;
         stdout.flush()
     }
 
@@ -320,20 +321,33 @@ impl Output {
         self.write_block_with_color(&message, &color_spec)
     }
 
-    pub fn warn(&self, message: impl Into<String>) -> io::Result<()> {
+    pub fn trace_warn(&self, message: impl Into<String>) -> io::Result<()> {
         self.status(message, "[WARNING]", SolarizedDark::YELLOW, false)
     }
 
-    pub fn error(&self, message: impl Into<String>) -> io::Result<()> {
+    pub fn trace_error(&self, message: impl Into<String>) -> io::Result<()> {
         self.status(message, "[ERROR]", SolarizedDark::RED, true)
     }
 
-    pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
+    pub fn trace_success(&self, message: impl Into<String>) -> io::Result<()> {
         self.status(message, "[OK]", SolarizedDark::GREEN, false)
     }
 
-    pub fn debug(&self, message: impl Into<String>) -> io::Result<()> {
+    pub fn trace_debug(&self, message: impl Into<String>) -> io::Result<()> {
         self.status(message, "[DEBUG]", SolarizedDark::MAGENTA, false)
+    }
+
+    pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
+        if self.json {
+            return Ok(());
+        }
+
+        let message = message.into();
+
+        // Use SOLARIZED_YELLOW for notes
+        let color_spec = ColorSpec::new().set_fg(Some(SolarizedDark::GREEN)).clone();
+
+        self.write_block_with_color(&message, &color_spec)
     }
 
     pub fn note(&self, message: impl Into<String>) -> io::Result<()> {
@@ -399,75 +413,6 @@ impl Output {
         self.write_block_with_color(&formatted_message, &color_spec)
     }
 
-    pub fn toolschema(&self, schema: &tenx_mcp::schema::ToolSchema) -> Result<()> {
-        if let Some(properties) = &schema.properties {
-            if !properties.is_empty() {
-                // Sort properties to show required ones first
-                let mut sorted_props: Vec<_> = properties.iter().collect();
-                sorted_props.sort_by(|(a_name, _), (b_name, _)| {
-                    let a_required = schema.is_required(a_name);
-                    let b_required = schema.is_required(b_name);
-
-                    // Required fields come first
-                    b_required.cmp(&a_required).then(a_name.cmp(b_name))
-                });
-
-                for (name, prop_schema) in sorted_props {
-                    let is_required = schema.is_required(name);
-
-                    // Extract type from schema
-                    let type_str = if let Some(serde_json::Value::String(t)) =
-                        prop_schema.get("type")
-                    {
-                        t.to_string()
-                    } else if let Some(serde_json::Value::Array(types)) = prop_schema.get("type") {
-                        // Handle union types like ["string", "null"]
-                        types
-                            .iter()
-                            .filter_map(|v| v.as_str())
-                            .collect::<Vec<_>>()
-                            .join(" | ")
-                    } else {
-                        "unknown".to_string()
-                    };
-
-                    // Use kv() to display property name and type
-                    self.kv(name, &type_str)?;
-
-                    // Show schema details indented further
-                    let out = self.indent();
-
-                    // Show required marker on separate line if required
-                    if is_required {
-                        out.note("[required]")?;
-                    }
-
-                    // Make a mutable copy of the schema
-                    let mut schema_copy = prop_schema.clone();
-
-                    // Remove type since we already displayed it
-                    if let Some(obj) = schema_copy.as_object_mut() {
-                        obj.remove("type");
-
-                        // Extract and display description if it exists
-                        if let Some(serde_json::Value::String(desc)) = obj.remove("description") {
-                            out.text(&desc)?;
-                        }
-
-                        // If there are remaining properties, display them as JSON
-                        if !obj.is_empty() {
-                            let rendered_schema = serde_json::to_string_pretty(&schema_copy)?;
-                            for line in rendered_schema.lines() {
-                                out.text(line)?;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub fn kv(&self, key: impl Into<String>, value: impl Into<String>) -> io::Result<()> {
         if self.json {
             return Ok(());
@@ -530,7 +475,7 @@ impl Output {
         if self.json {
             self.output_json("{}")?;
         } else {
-            self.success("Ping successful!")?;
+            self.trace_success("Ping successful!")?;
         }
         Ok(())
     }

@@ -89,7 +89,7 @@ pub async fn renew_command(ctx: &Ctx, name: String) -> Result<()> {
     // Save the updated auth
     storage.store_auth(&auth)?;
 
-    ctx.output.success("Token refreshed successfully!")?;
+    ctx.output.trace_success("Token refreshed successfully!")?;
     ctx.output.text("")?;
     ctx.output.text("New token status:")?;
 
