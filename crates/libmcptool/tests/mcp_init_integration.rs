@@ -5,7 +5,8 @@ use tempfile::TempDir;
 fn create_test_ctx() -> (Ctx, TempDir) {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let config_path = temp_dir.path().to_path_buf();
-    let ctx = Ctx::new(config_path, None, false, false, 80).expect("Failed to create context");
+    let ctx =
+        Ctx::new(config_path, None, false, false, false, 80).expect("Failed to create context");
     (ctx, temp_dir)
 }
 

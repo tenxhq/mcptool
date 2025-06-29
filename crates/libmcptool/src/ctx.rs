@@ -29,11 +29,13 @@ impl Ctx {
         config_path: PathBuf,
         logs: Option<LogLevel>,
         json: bool,
+        quiet: bool,
         color: bool,
         width: usize,
     ) -> Result<Self> {
         let output = Output::new(color, width)
             .with_json(json)
+            .with_quiet(quiet)
             .with_logging(logs)?;
 
         Ok(Self {

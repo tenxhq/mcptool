@@ -156,6 +156,10 @@ struct Cli {
     #[arg(long, global = true, conflicts_with = "color")]
     no_color: bool,
 
+    /// Suppress all output including JSON output
+    #[arg(long, global = true)]
+    quiet: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -228,7 +232,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create the MCPTool instance
-    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json, color, width)?;
+    let ctx = ctx::Ctx::new(config_path, cli.logs, cli.json, cli.quiet, color, width)?;
 
     match cli.command {
         Commands::Version => {

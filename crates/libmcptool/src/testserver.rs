@@ -177,7 +177,13 @@ impl ServerConn for TestServerConn {
 }
 
 pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
-    let output = &ctx.output;
+    let output = if stdio {
+        // In stdio mode, silence all output
+        ctx.output.clone().with_quiet(true)
+    } else {
+        ctx.output.clone()
+    };
+
     let _ = output.h1("mcptool testserver");
     let _ = output.text(format!("Version: {}", env!("CARGO_PKG_VERSION")));
     let _ = output.text(format!(
@@ -191,8 +197,6 @@ pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
         .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
 
     if stdio {
-        let _ = output.text("Transport: stdio");
-        let _ = output.text("Waiting for client connection on stdin/stdout...");
         server.serve_stdio().await?;
     } else {
         let addr = format!("127.0.0.1:{port}");

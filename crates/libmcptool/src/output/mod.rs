@@ -109,6 +109,7 @@ impl SolarizedDark {
 pub struct Output {
     stdout: Arc<Mutex<StandardStream>>,
     pub json: bool,
+    pub quiet: bool,
     color: bool,
     width: usize,
     indent: usize,
@@ -125,6 +126,7 @@ impl Output {
         Self {
             stdout: Arc::new(Mutex::new(StandardStream::stdout(color_choice))),
             json: false,
+            quiet: false,
             color,
             width,
             indent: 0,
@@ -156,6 +158,9 @@ impl Output {
 
     /// Output a JSON value with syntax highlighting if appropriate
     pub fn json_value<T: serde::Serialize>(&self, value: &T) -> Result<()> {
+        if self.quiet {
+            return Ok(());
+        }
         let json_str = serde_json::to_string_pretty(value)?;
         self.output_json(&json_str)?;
         Ok(())
@@ -180,6 +185,12 @@ impl Output {
         }
 
         Ok(self)
+    }
+
+    /// Set quiet output mode.
+    pub fn with_quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
     }
 
     /// Return a copy of this Output with indent incremented by 4 spaces.
@@ -241,12 +252,15 @@ impl Output {
 
     /// Raw output that is not affected by output settings
     fn raw(&self, message: impl Into<String>) -> io::Result<()> {
+        if self.quiet {
+            return Ok(());
+        }
         let message = message.into();
         self.write_block(&message)
     }
 
     pub fn text(&self, message: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -259,7 +273,7 @@ impl Output {
     }
 
     pub fn h1(&self, message: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -295,7 +309,7 @@ impl Output {
     }
 
     pub fn h2(&self, message: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -311,7 +325,7 @@ impl Output {
     }
 
     pub fn h3(&self, message: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -340,7 +354,7 @@ impl Output {
     }
 
     pub fn success(&self, message: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -353,7 +367,7 @@ impl Output {
     }
 
     pub fn note(&self, message: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -373,7 +387,7 @@ impl Output {
         color: Color,
         bold: bool,
     ) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
@@ -390,6 +404,9 @@ impl Output {
     }
 
     pub fn trace(&self, message: impl Into<String>, level: Level) -> io::Result<()> {
+        if self.quiet {
+            return Ok(());
+        }
         let message = message.into();
         let formatted_message = format!("trace: {message}");
 
@@ -416,7 +433,7 @@ impl Output {
     }
 
     pub fn kv(&self, key: impl Into<String>, value: impl Into<String>) -> io::Result<()> {
-        if self.json {
+        if self.json || self.quiet {
             return Ok(());
         }
 
