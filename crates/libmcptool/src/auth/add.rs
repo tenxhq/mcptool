@@ -4,7 +4,7 @@ use rustyline::DefaultEditor;
 use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
 
-use crate::{ctx::Ctx, storage::StoredAuth, Error, Result};
+use crate::{auth::validate_auth_name, ctx::Ctx, storage::StoredAuth, Error, Result};
 
 pub struct AddCommandArgs {
     pub name: String,
@@ -21,6 +21,10 @@ pub struct AddCommandArgs {
 
 pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     let name = args.name;
+
+    // Validate auth name
+    validate_auth_name(&name)?;
+
     ctx.output
         .heading(format!("Adding OAuth authentication entry: {name}"))?;
 
@@ -394,4 +398,57 @@ fn find_available_port() -> Result<u16> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let addr = listener.local_addr()?;
     Ok(addr.port())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::auth::validate_auth_name;
+
+    #[test]
+    fn test_validate_auth_name() {
+        // Valid names
+        assert!(validate_auth_name("myauth").is_ok());
+        assert!(validate_auth_name("my_auth").is_ok());
+        assert!(validate_auth_name("MyAuth123").is_ok());
+        assert!(validate_auth_name("AUTH_123_test").is_ok());
+        assert!(validate_auth_name("a").is_ok());
+        assert!(validate_auth_name("_").is_ok());
+        assert!(validate_auth_name("123").is_ok());
+
+        // Invalid names
+        assert!(validate_auth_name("").is_err());
+        assert!(validate_auth_name("my-auth").is_err());
+        assert!(validate_auth_name("my auth").is_err());
+        assert!(validate_auth_name("my:auth").is_err());
+        assert!(validate_auth_name("my/auth").is_err());
+        assert!(validate_auth_name("my.auth").is_err());
+        assert!(validate_auth_name("my@auth").is_err());
+        assert!(validate_auth_name("my#auth").is_err());
+        assert!(validate_auth_name("my$auth").is_err());
+        assert!(validate_auth_name("my%auth").is_err());
+        assert!(validate_auth_name("my^auth").is_err());
+        assert!(validate_auth_name("my&auth").is_err());
+        assert!(validate_auth_name("my*auth").is_err());
+        assert!(validate_auth_name("my(auth)").is_err());
+        assert!(validate_auth_name("my[auth]").is_err());
+        assert!(validate_auth_name("my{auth}").is_err());
+        assert!(validate_auth_name("my|auth").is_err());
+        assert!(validate_auth_name("my\\auth").is_err());
+        assert!(validate_auth_name("my;auth").is_err());
+        assert!(validate_auth_name("my'auth").is_err());
+        assert!(validate_auth_name("my\"auth").is_err());
+        assert!(validate_auth_name("my<auth>").is_err());
+        assert!(validate_auth_name("my?auth").is_err());
+        assert!(validate_auth_name("my!auth").is_err());
+        assert!(validate_auth_name("my~auth").is_err());
+        assert!(validate_auth_name("my`auth").is_err());
+        assert!(validate_auth_name("my+auth").is_err());
+        assert!(validate_auth_name("my=auth").is_err());
+        assert!(validate_auth_name("my,auth").is_err());
+
+        // Unicode characters should be invalid
+        assert!(validate_auth_name("myαuth").is_err());
+        assert!(validate_auth_name("my😀auth").is_err());
+        assert!(validate_auth_name("mÿauth").is_err());
+    }
 }

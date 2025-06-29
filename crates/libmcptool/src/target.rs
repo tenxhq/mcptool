@@ -174,6 +174,10 @@ impl Target {
         if input.is_empty() {
             return Err("Empty auth name".to_string());
         }
+
+        // Validate the auth name using the shared validation function
+        crate::auth::validate_auth_name(input).map_err(|e| e.to_string())?;
+
         Ok(Target::Auth {
             name: input.to_string(),
         })
@@ -489,11 +493,33 @@ mod tests {
                 description: "Auth with simple name",
             },
             TestCase {
-                input: "auth://my-oauth-service",
+                input: "auth://my_oauth_service",
                 expected: Ok(Target::Auth {
-                    name: "my-oauth-service".to_string(),
+                    name: "my_oauth_service".to_string(),
                 }),
-                description: "Auth with hyphenated name",
+                description: "Auth with underscored name",
+            },
+            TestCase {
+                input: "auth://MyAuth123",
+                expected: Ok(Target::Auth {
+                    name: "MyAuth123".to_string(),
+                }),
+                description: "Auth with mixed case and numbers",
+            },
+            TestCase {
+                input: "auth://my-oauth-service",
+                expected: Err("MCP error: Authentication name 'my-oauth-service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"),
+                description: "Auth with hyphenated name (invalid)",
+            },
+            TestCase {
+                input: "auth://my:service",
+                expected: Err("MCP error: Authentication name 'my:service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"),
+                description: "Auth with colon (invalid)",
+            },
+            TestCase {
+                input: "auth://my/service",
+                expected: Err("MCP error: Authentication name 'my/service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)"),
+                description: "Auth with slash (invalid)",
             },
             TestCase {
                 input: "auth://",
@@ -685,10 +711,10 @@ mod tests {
             },
             TestCase {
                 target: Target::Auth {
-                    name: "my-oauth-service".to_string(),
+                    name: "my_oauth_service".to_string(),
                 },
-                expected: "auth://my-oauth-service",
-                description: "Auth with hyphenated name",
+                expected: "auth://my_oauth_service",
+                description: "Auth with underscored name",
             },
         ];
 
