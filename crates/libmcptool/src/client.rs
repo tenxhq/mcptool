@@ -53,7 +53,7 @@ pub async fn connect_with_auth(
     if let Some(expires_at) = auth.expires_at {
         if expires_at <= std::time::SystemTime::now() {
             return Err(Error::Other(
-                "Access token has expired. Please re-authenticate with 'mcptool auth add'"
+                "Access token has expired. Please re-authenticate with 'mcptool auth add/renew'"
                     .to_string(),
             ));
         }

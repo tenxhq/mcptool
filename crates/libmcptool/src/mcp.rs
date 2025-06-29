@@ -32,3 +32,13 @@ pub async fn listresources(client: &mut Client<()>, output: &crate::output::Outp
     output::listresources::list_resources_result(output, &resources_result)?;
     Ok(())
 }
+
+pub async fn listprompts(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
+    output.text("Listing prompts")?;
+    let prompts_result = client
+        .list_prompts(None)
+        .timed("    response", output)
+        .await?;
+    output::listprompts::list_prompts_result(output, &prompts_result)?;
+    Ok(())
+}

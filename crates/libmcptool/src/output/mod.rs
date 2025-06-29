@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod initresult;
+pub mod listprompts;
 pub mod listresources;
 pub mod listtools;
 
