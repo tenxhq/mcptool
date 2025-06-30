@@ -16,52 +16,58 @@ pub fn list_resource_templates_result(
         } else {
             for template in &templates_result.resource_templates {
                 output.h1(&template.name)?;
-                output.text("")?; // Extra blank line between templates
-
-                // URI Template
-                output.text(format!("URI Template: {}", template.uri_template))?;
-
-                // Title (if present)
-                if let Some(title) = &template.title {
-                    output.text(format!("Title: {title}"))?;
-                }
+                let out = output.indent();
 
                 // Description (if present)
                 if let Some(description) = &template.description {
-                    output.text(format!("Description: {description}"))?;
+                    out.write_block(description)?;
+                }
+
+                // URI Template
+                out.kv("URI Template", &template.uri_template)?;
+
+                // Title (if present)
+                if let Some(title) = &template.title {
+                    out.kv("Title", title)?;
                 }
 
                 // MIME Type (if present)
                 if let Some(mime_type) = &template.mime_type {
-                    output.text(format!("MIME Type: {mime_type}"))?;
+                    out.kv("MIME Type", mime_type)?;
                 }
 
                 // Annotations (if present)
                 if let Some(annotations) = &template.annotations {
-                    output.text("")?; // Blank line before annotations
-                    output.text("Annotations:")?;
+                    out.h2("Annotations")?;
+                    let out = out.indent();
 
                     if let Some(audience) = &annotations.audience {
-                        output.text(format!("  Audience: {audience:?}"))?;
+                        let audience_str = audience
+                            .iter()
+                            .map(|r| format!("{r:?}"))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        out.kv("audience", &audience_str)?;
                     }
+
                     if let Some(priority) = &annotations.priority {
-                        output.text(format!("  Priority: {priority}"))?;
+                        out.kv("priority", priority.to_string())?;
                     }
+
                     if let Some(last_modified) = &annotations.last_modified {
-                        output.text(format!("  Last Modified: {last_modified}"))?;
+                        out.kv("last modified", last_modified)?;
                     }
                 }
 
                 output.text("")?; // Extra blank line between templates
             }
+        }
 
-            // Show pagination cursor if there are more templates
-            if let Some(cursor) = &templates_result.next_cursor {
-                output.text("")?;
-                output.text(format!(
-                    "More resource templates available. Next cursor: {cursor}"
-                ))?;
-            }
+        // Show cursor information if available
+        if let Some(next_cursor) = &templates_result.next_cursor {
+            output.note(format!(
+                "More resource templates available. Next cursor: {next_cursor}"
+            ))?;
         }
     }
     Ok(())

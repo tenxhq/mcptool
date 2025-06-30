@@ -47,6 +47,9 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                         )?;
                         ctx.output
                             .text("  listprompts   - List all available prompts from the server")?;
+                        ctx.output.text(
+                            "  listresourcetemplates - List all available resource templates from the server",
+                        )?;
                         ctx.output
                             .text("  help          - Show this help message")?;
                         ctx.output.text("  quit/exit     - Exit the REPL")?
@@ -77,6 +80,14 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                             .output
                             .trace_error(format!("Failed to list prompts: {e}"))?,
                     },
+                    "listresourcetemplates" => {
+                        match mcp::listresourcetemplates(&mut client, &ctx.output).await {
+                            Ok(_) => {}
+                            Err(e) => ctx
+                                .output
+                                .trace_error(format!("Failed to list resource templates: {e}"))?,
+                        }
+                    }
                     _ => ctx.output.trace_warn(format!(
                         "Unknown command: {line}. Type 'help' for available commands."
                     ))?,
