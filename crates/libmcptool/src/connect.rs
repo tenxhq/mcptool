@@ -1,6 +1,6 @@
 use rustyline::DefaultEditor;
 
-use crate::{Result, client, ctx::Ctx, mcp, target::Target};
+use crate::{Result, client, ctx::Ctx, mcp, output::initresult, target::Target};
 
 pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
     let target = Target::parse(&target)?;
@@ -37,11 +37,17 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                     "help" => {
                         ctx.output.h1("Available commands")?;
                         ctx.output
+                            .text("  init      - Display server initialization information")?;
+                        ctx.output
                             .text("  ping      - Send a ping request to the server")?;
                         ctx.output
                             .text("  listtools - List all available tools from the server")?;
                         ctx.output.text("  help      - Show this help message")?;
                         ctx.output.text("  quit/exit - Exit the REPL")?
+                    }
+                    "init" => {
+                        ctx.output.note("Showing initialization result from initial connection (not re-initializing)")?;
+                        initresult::init_result(&ctx.output, &init_result)?;
                     }
                     "ping" => match mcp::ping(&mut client, &ctx.output).await {
                         Ok(_) => {}

@@ -141,7 +141,7 @@ impl ServerConn for TestServerConn {
         &self,
         _context: &ServerCtx,
         name: String,
-        arguments: Option<std::collections::HashMap<String, serde_json::Value>>,
+        arguments: Option<tenx_mcp::Arguments>,
     ) -> Result<tenx_mcp::schema::CallToolResult> {
         let _ = self.output.h1("call_tool");
         let params = serde_json::json!({
@@ -159,9 +159,8 @@ impl ServerConn for TestServerConn {
 
         let message = arguments
             .as_ref()
-            .and_then(|args| args.get("message"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("No message provided");
+            .and_then(|args| args.get_string("message"))
+            .unwrap_or_else(|| "No message provided".to_string());
 
         let result =
             tenx_mcp::schema::CallToolResult::new().with_text_content(format!("Echo: {message}"));
@@ -259,7 +258,7 @@ impl ServerConn for TestServerConn {
         &self,
         _context: &ServerCtx,
         name: String,
-        arguments: Option<std::collections::HashMap<String, String>>,
+        arguments: Option<tenx_mcp::Arguments>,
     ) -> Result<tenx_mcp::schema::GetPromptResult> {
         let _ = self.output.h1("get_prompt");
         let params = serde_json::json!({
@@ -275,16 +274,14 @@ impl ServerConn for TestServerConn {
             "greeting" => {
                 let name = arguments
                     .as_ref()
-                    .and_then(|args| args.get("name"))
-                    .map(|s| s.as_str())
-                    .unwrap_or("World");
+                    .and_then(|args| args.get_string("name"))
+                    .unwrap_or_else(|| "World".to_string());
                 let style = arguments
                     .as_ref()
-                    .and_then(|args| args.get("style"))
-                    .map(|s| s.as_str())
-                    .unwrap_or("casual");
+                    .and_then(|args| args.get_string("style"))
+                    .unwrap_or_else(|| "casual".to_string());
 
-                let message = match style {
+                let message = match style.as_str() {
                     "formal" => format!("Good day, {name}. How may I assist you today?"),
                     _ => format!("Hey {name}! What's up?"),
                 };
@@ -296,14 +293,12 @@ impl ServerConn for TestServerConn {
             "code_review" => {
                 let language = arguments
                     .as_ref()
-                    .and_then(|args| args.get("language"))
-                    .map(|s| s.as_str())
-                    .unwrap_or("unknown");
+                    .and_then(|args| args.get_string("language"))
+                    .unwrap_or_else(|| "unknown".to_string());
                 let code = arguments
                     .as_ref()
-                    .and_then(|args| args.get("code"))
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
+                    .and_then(|args| args.get_string("code"))
+                    .unwrap_or_default();
 
                 let review = format!(
                     "Please review the following {language} code:\n\n```{language}\n{code}\n```\n\nProvide feedback on code quality, potential bugs, and improvements."

@@ -74,61 +74,55 @@ pub fn list_tools_result(
     tools_result: &tenx_mcp::schema::ListToolsResult,
 ) -> Result<()> {
     if output.json {
-        // Output as JSON
         output.json_value(tools_result)?;
+    } else if tools_result.tools.is_empty() {
+        output.text("No tools.")?;
     } else {
-        // Output as formatted text
-        if tools_result.tools.is_empty() {
-            output.text("No tools.")?;
-        } else {
-            for tool in &tools_result.tools {
-                output.h1(&tool.name)?;
-                output.text("")?; // Extra blank line between tools
+        for tool in &tools_result.tools {
+            output.h1(&tool.name)?;
 
-                let out = output.indent();
+            let out = output.indent();
 
-                // Description
-                if let Some(description) = &tool.description {
-                    for line in description.lines() {
-                        out.text(line)?;
-                    }
+            // Description
+            if let Some(description) = &tool.description {
+                for line in description.lines() {
+                    out.text(line)?;
                 }
-                out.text("")?;
+            }
 
-                // Annotations
-                if let Some(annotations) = &tool.annotations {
-                    let out = out.indent();
-                    out.h2("Annotations")?;
-                    let out = out.indent();
-                    if let Some(title) = &annotations.title {
-                        out.kv("title", title)?;
-                    }
+            // Annotations
+            if let Some(annotations) = &tool.annotations {
+                let out = out.indent();
+                out.h2("Annotations")?;
+                let out = out.indent();
+                if let Some(title) = &annotations.title {
+                    out.kv("title", title)?;
                 }
+            }
 
-                // Input arguments
-                if let Some(properties) = &tool.input_schema.properties {
+            // Input arguments
+            if let Some(properties) = &tool.input_schema.properties {
+                if !properties.is_empty() {
+                    let out = out.indent();
+                    out.h2("Input")?;
+                    let out = out.indent();
+                    toolschema(&out, &tool.input_schema)?;
+                }
+            }
+
+            // Output schema
+            if let Some(output_schema) = &tool.output_schema {
+                if let Some(properties) = &output_schema.properties {
                     if !properties.is_empty() {
                         let out = out.indent();
-                        out.h2("Input")?;
+                        out.h2("Output")?;
                         let out = out.indent();
-                        toolschema(&out, &tool.input_schema)?;
+                        toolschema(&out, output_schema)?;
                     }
                 }
-
-                // Output schema
-                if let Some(output_schema) = &tool.output_schema {
-                    if let Some(properties) = &output_schema.properties {
-                        if !properties.is_empty() {
-                            let out = out.indent();
-                            out.h2("Output")?;
-                            let out = out.indent();
-                            toolschema(&out, output_schema)?;
-                        }
-                    }
-                }
-
-                output.text("")?; // Extra blank line between tools
             }
+
+            output.text("")?; // Extra blank line between tools
         }
     }
     Ok(())
