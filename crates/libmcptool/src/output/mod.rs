@@ -3,6 +3,7 @@
 pub mod initresult;
 pub mod listprompts;
 pub mod listresources;
+pub mod listresourcetemplates;
 pub mod listtools;
 
 use std::io::{self, Write};

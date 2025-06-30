@@ -37,13 +37,19 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                     "help" => {
                         ctx.output.h1("Available commands")?;
                         ctx.output
-                            .text("  init      - Display server initialization information")?;
+                            .text("  init          - Display server initialization information")?;
                         ctx.output
-                            .text("  ping      - Send a ping request to the server")?;
+                            .text("  ping          - Send a ping request to the server")?;
                         ctx.output
-                            .text("  listtools - List all available tools from the server")?;
-                        ctx.output.text("  help      - Show this help message")?;
-                        ctx.output.text("  quit/exit - Exit the REPL")?
+                            .text("  listtools     - List all available tools from the server")?;
+                        ctx.output.text(
+                            "  listresources - List all available resources from the server",
+                        )?;
+                        ctx.output
+                            .text("  listprompts   - List all available prompts from the server")?;
+                        ctx.output
+                            .text("  help          - Show this help message")?;
+                        ctx.output.text("  quit/exit     - Exit the REPL")?
                     }
                     "init" => {
                         ctx.output.note("Showing initialization result from initial connection (not re-initializing)")?;
@@ -58,6 +64,18 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                         Err(e) => ctx
                             .output
                             .trace_error(format!("Failed to list tools: {e}"))?,
+                    },
+                    "listresources" => match mcp::listresources(&mut client, &ctx.output).await {
+                        Ok(_) => {}
+                        Err(e) => ctx
+                            .output
+                            .trace_error(format!("Failed to list resources: {e}"))?,
+                    },
+                    "listprompts" => match mcp::listprompts(&mut client, &ctx.output).await {
+                        Ok(_) => {}
+                        Err(e) => ctx
+                            .output
+                            .trace_error(format!("Failed to list prompts: {e}"))?,
                     },
                     _ => ctx.output.trace_warn(format!(
                         "Unknown command: {line}. Type 'help' for available commands."

@@ -431,6 +431,75 @@ impl ServerConn for TestServerConn {
 
         Ok(result)
     }
+
+    async fn list_resource_templates(
+        &self,
+        _context: &ServerCtx,
+        cursor: Option<Cursor>,
+    ) -> Result<tenx_mcp::schema::ListResourceTemplatesResult> {
+        let _ = self.output.h1("list_resource_templates");
+        let params = serde_json::json!({
+            "cursor": cursor,
+        });
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
+
+        // Create sample resource templates
+        let user_template = tenx_mcp::schema::ResourceTemplate::new(
+            "user-profile",
+            "user://testserver/{user_id}/profile",
+        )
+        .with_title("User Profile")
+        .with_description("Access user profile information by ID")
+        .with_mime_type("application/json");
+
+        let log_template =
+            tenx_mcp::schema::ResourceTemplate::new("dated-log", "log://testserver/{date}/entries")
+                .with_title("Daily Log Entries")
+                .with_description("Server log entries for a specific date (YYYY-MM-DD)")
+                .with_mime_type("text/plain")
+                .with_annotations(
+                    tenx_mcp::schema::Annotations::new()
+                        .with_priority(0.8)
+                        .with_audience(vec![tenx_mcp::schema::Role::Assistant]),
+                );
+
+        let config_template = tenx_mcp::schema::ResourceTemplate::new(
+            "config-section",
+            "config://testserver/{section}/{key}",
+        )
+        .with_title("Configuration Values")
+        .with_description("Access configuration values by section and key")
+        .with_mime_type("text/plain");
+
+        let metrics_template = tenx_mcp::schema::ResourceTemplate::new(
+            "metric-history",
+            "metrics://testserver/{metric_name}/history?period={period}",
+        )
+        .with_title("Metric History")
+        .with_description("Historical data for a specific metric (period: 1h, 1d, 1w)")
+        .with_mime_type("application/json")
+        .with_annotations(
+            tenx_mcp::schema::Annotations::new()
+                .with_priority(0.5)
+                .with_last_modified(chrono::Local::now().to_rfc3339()),
+        );
+
+        let result = tenx_mcp::schema::ListResourceTemplatesResult::default()
+            .with_resource_template(user_template)
+            .with_resource_template(log_template)
+            .with_resource_template(config_template)
+            .with_resource_template(metrics_template);
+
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
+
+        Ok(result)
+    }
 }
 
 pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
