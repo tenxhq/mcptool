@@ -1,29 +1,33 @@
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use tenx_mcp::{schema::*, Error, Result, Server, ServerConn, ServerCtx};
+use tenx_mcp::{
+    Error, Result, Server, ServerConn, ServerCtx,
+    schema::{
+        ClientCapabilities, ClientNotification, Cursor, InitializeResult, ListPromptsResult,
+        ListResourcesResult, ListToolsResult, Prompt, PromptArgument, ReadResourceResult, Resource,
+        ServerCapabilities, Tool, ToolSchema,
+    },
+};
 
 use crate::{ctx::Ctx, output::Output};
 
+/// Sample user data structure for demonstrating JSON resource serving
 #[derive(Serialize, Deserialize)]
-struct ServerConfig {
-    version: String,
-    protocol: String,
-    features: ServerFeatures,
-    limits: ServerLimits,
+struct User {
+    id: u32,
+    name: String,
+    email: String,
+    role: String,
+    last_login: String,
 }
 
+/// Response structure for the users resource
 #[derive(Serialize, Deserialize)]
-struct ServerFeatures {
-    tools: bool,
-    prompts: bool,
-    resources: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ServerLimits {
-    max_request_size: usize,
-    timeout_seconds: u32,
+struct UsersResponse {
+    users: Vec<User>,
+    total_count: usize,
+    generated_at: String,
 }
 
 /// A test server connection that logs all interactions verbosely
@@ -77,7 +81,7 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         protocol_version: String,
         capabilities: ClientCapabilities,
-        client_info: Implementation,
+        client_info: tenx_mcp::schema::Implementation,
     ) -> Result<InitializeResult> {
         let params = serde_json::json!({
             "protocol_version": protocol_version,
@@ -148,7 +152,7 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         name: String,
         arguments: Option<std::collections::HashMap<String, serde_json::Value>>,
-    ) -> Result<CallToolResult> {
+    ) -> Result<tenx_mcp::schema::CallToolResult> {
         let params = serde_json::json!({
             "name": name,
             "arguments": arguments,
@@ -168,7 +172,8 @@ impl ServerConn for TestServerConn {
             .and_then(|v| v.as_str())
             .unwrap_or("No message provided");
 
-        let result = CallToolResult::new().with_text_content(format!("Echo: {message}"));
+        let result =
+            tenx_mcp::schema::CallToolResult::new().with_text_content(format!("Echo: {message}"));
 
         let response = serde_json::to_string_pretty(&result).unwrap();
         self.log_response("tools/call", &response);
@@ -199,31 +204,47 @@ impl ServerConn for TestServerConn {
             &serde_json::to_string_pretty(&params).unwrap(),
         );
 
-        let greeting_prompt = Prompt::new("greeting")
-            .with_description("Generate a greeting message")
-            .with_argument(
-                PromptArgument::new("name")
-                    .with_description("The name to greet")
-                    .required(true),
-            )
-            .with_argument(
-                PromptArgument::new("style")
-                    .with_description("The greeting style (formal/casual)")
-                    .required(false),
-            );
+        let greeting_prompt = Prompt {
+            name: "greeting".to_string(),
+            title: None,
+            description: Some("Generate a greeting message".to_string()),
+            arguments: Some(vec![
+                PromptArgument {
+                    name: "name".to_string(),
+                    title: None,
+                    description: Some("The name to greet".to_string()),
+                    required: Some(true),
+                },
+                PromptArgument {
+                    name: "style".to_string(),
+                    title: None,
+                    description: Some("The greeting style (formal/casual)".to_string()),
+                    required: Some(false),
+                },
+            ]),
+            _meta: None,
+        };
 
-        let code_review_prompt = Prompt::new("code_review")
-            .with_description("Review code and provide feedback")
-            .with_argument(
-                PromptArgument::new("language")
-                    .with_description("Programming language of the code")
-                    .required(true),
-            )
-            .with_argument(
-                PromptArgument::new("code")
-                    .with_description("The code to review")
-                    .required(true),
-            );
+        let code_review_prompt = Prompt {
+            name: "code_review".to_string(),
+            title: None,
+            description: Some("Review code and provide feedback".to_string()),
+            arguments: Some(vec![
+                PromptArgument {
+                    name: "language".to_string(),
+                    title: None,
+                    description: Some("Programming language of the code".to_string()),
+                    required: Some(true),
+                },
+                PromptArgument {
+                    name: "code".to_string(),
+                    title: None,
+                    description: Some("The code to review".to_string()),
+                    required: Some(true),
+                },
+            ]),
+            _meta: None,
+        };
 
         let result = ListPromptsResult::default()
             .with_prompt(greeting_prompt)
@@ -240,7 +261,7 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         name: String,
         arguments: Option<std::collections::HashMap<String, String>>,
-    ) -> Result<GetPromptResult> {
+    ) -> Result<tenx_mcp::schema::GetPromptResult> {
         let params = serde_json::json!({
             "name": name,
             "arguments": arguments,
@@ -268,9 +289,9 @@ impl ServerConn for TestServerConn {
                     _ => format!("Hey {name}! What's up?"),
                 };
 
-                GetPromptResult::new()
+                tenx_mcp::schema::GetPromptResult::new()
                     .with_description("A personalized greeting")
-                    .with_message(PromptMessage::user_text(message))
+                    .with_message(tenx_mcp::schema::PromptMessage::user_text(message))
             }
             "code_review" => {
                 let language = arguments
@@ -288,9 +309,9 @@ impl ServerConn for TestServerConn {
                     "Please review the following {language} code:\n\n```{language}\n{code}\n```\n\nProvide feedback on code quality, potential bugs, and improvements."
                 );
 
-                GetPromptResult::new()
+                tenx_mcp::schema::GetPromptResult::new()
                     .with_description("Code review request")
-                    .with_message(PromptMessage::user_text(review))
+                    .with_message(tenx_mcp::schema::PromptMessage::user_text(review))
             }
             _ => return Err(Error::MethodNotFound(format!("Unknown prompt: {name}"))),
         };
@@ -318,10 +339,10 @@ impl ServerConn for TestServerConn {
             .with_description("Current test server log")
             .with_mime_type("text/plain");
 
-        let config_resource = Resource::new("server-config", "config://testserver/settings.json")
-            .with_description("Test server configuration")
+        let sample_data_resource = Resource::new("sample-data", "data://testserver/users.json")
+            .with_description("Sample user data for testing")
             .with_mime_type("application/json")
-            .with_size(256);
+            .with_size(512);
 
         let metrics_resource = Resource::new("server-metrics", "metrics://testserver/stats")
             .with_description("Server performance metrics")
@@ -329,7 +350,7 @@ impl ServerConn for TestServerConn {
 
         let result = ListResourcesResult::default()
             .with_resource(log_resource)
-            .with_resource(config_resource)
+            .with_resource(sample_data_resource)
             .with_resource(metrics_resource);
 
         let response = serde_json::to_string_pretty(&result).unwrap();
@@ -357,21 +378,39 @@ impl ServerConn for TestServerConn {
                 );
                 ReadResourceResult::new().with_text(uri, log_content)
             }
-            "config://testserver/settings.json" => {
-                let config = ServerConfig {
-                    version: env!("CARGO_PKG_VERSION").to_string(),
-                    protocol: LATEST_PROTOCOL_VERSION.to_string(),
-                    features: ServerFeatures {
-                        tools: true,
-                        prompts: true,
-                        resources: true,
+            "data://testserver/users.json" => {
+                // Sample user data that demonstrates JSON resource serving
+                let users = vec![
+                    User {
+                        id: 1,
+                        name: "Alice Johnson".to_string(),
+                        email: "alice@example.com".to_string(),
+                        role: "admin".to_string(),
+                        last_login: "2024-01-15T10:30:00Z".to_string(),
                     },
-                    limits: ServerLimits {
-                        max_request_size: 1048576,
-                        timeout_seconds: 30,
+                    User {
+                        id: 2,
+                        name: "Bob Smith".to_string(),
+                        email: "bob@example.com".to_string(),
+                        role: "user".to_string(),
+                        last_login: "2024-01-14T15:45:00Z".to_string(),
                     },
+                    User {
+                        id: 3,
+                        name: "Charlie Davis".to_string(),
+                        email: "charlie@example.com".to_string(),
+                        role: "moderator".to_string(),
+                        last_login: "2024-01-13T09:00:00Z".to_string(),
+                    },
+                ];
+
+                let response = UsersResponse {
+                    total_count: users.len(),
+                    users,
+                    generated_at: chrono::Local::now().to_rfc3339(),
                 };
-                ReadResourceResult::new().with_json(uri, &config).unwrap()
+
+                ReadResourceResult::new().with_json(uri, &response).unwrap()
             }
             "metrics://testserver/stats" => {
                 let counter = self.request_counter.lock().unwrap();
@@ -401,7 +440,10 @@ pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
 
     let _ = output.h1("mcptool testserver");
     let _ = output.text(format!("Version: {}", env!("CARGO_PKG_VERSION")));
-    let _ = output.text(format!("Protocol: {LATEST_PROTOCOL_VERSION}"));
+    let _ = output.text(format!(
+        "Protocol: {}",
+        tenx_mcp::schema::LATEST_PROTOCOL_VERSION
+    ));
 
     let output_for_conn = output.clone();
     let server = Server::default()

@@ -1,6 +1,6 @@
 use rustyline::DefaultEditor;
 
-use crate::{client, ctx::Ctx, mcp, target::Target, Result};
+use crate::{Result, client, ctx::Ctx, mcp, target::Target};
 
 pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
     let target = Target::parse(&target)?;

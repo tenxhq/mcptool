@@ -1,5 +1,5 @@
-use crate::output::Output;
 use crate::Result;
+use crate::output::Output;
 
 /// Display the list of prompts in either JSON or formatted text
 pub fn list_prompts_result(
@@ -16,7 +16,6 @@ pub fn list_prompts_result(
         } else {
             for prompt in &prompts_result.prompts {
                 output.h1(&prompt.name)?;
-                output.text("")?; // Extra blank line between prompts
 
                 let out = output.indent();
 
@@ -25,7 +24,6 @@ pub fn list_prompts_result(
                     for line in description.lines() {
                         out.text(line)?;
                     }
-                    out.text("")?;
                 }
 
                 // Arguments
@@ -53,7 +51,6 @@ pub fn list_prompts_result(
                         }
                     }
                 }
-
                 output.text("")?; // Extra blank line between prompts
             }
         }

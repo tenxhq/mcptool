@@ -523,17 +523,23 @@ mod tests {
             },
             TestCase {
                 input: "auth://my-oauth-service",
-                expected: Err(format_err("Authentication name 'my-oauth-service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)")),
+                expected: Err(format_err(
+                    "Authentication name 'my-oauth-service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)",
+                )),
                 description: "Auth with hyphenated name (invalid)",
             },
             TestCase {
                 input: "auth://my:service",
-                expected: Err(format_err("Authentication name 'my:service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)")),
+                expected: Err(format_err(
+                    "Authentication name 'my:service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)",
+                )),
                 description: "Auth with colon (invalid)",
             },
             TestCase {
                 input: "auth://my/service",
-                expected: Err(format_err("Authentication name 'my/service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)")),
+                expected: Err(format_err(
+                    "Authentication name 'my/service' is invalid. Names can only contain letters, numbers, and underscores (a-zA-Z0-9_)",
+                )),
                 description: "Auth with slash (invalid)",
             },
             TestCase {

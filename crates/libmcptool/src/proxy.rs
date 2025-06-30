@@ -8,7 +8,7 @@ use tokio::{
     process::Command,
 };
 
-use crate::{target::Target, Error, Result};
+use crate::{Error, Result, target::Target};
 
 async fn log_traffic(log_writer: &mut tokio::fs::File, direction: &str, data: &[u8]) -> Result<()> {
     let timestamp = Utc::now().to_rfc3339();

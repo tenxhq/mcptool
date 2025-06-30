@@ -1,5 +1,5 @@
-use crate::output::Output;
 use crate::Result;
+use crate::output::Output;
 
 /// Display the InitializeResult in either JSON or formatted text
 pub fn init_result(

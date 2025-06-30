@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 use tenx_mcp::{
-    schema::{ClientCapabilities, InitializeResult},
     Client,
+    schema::{ClientCapabilities, InitializeResult},
 };
 
 use crate::ctx::VERSION;
-use crate::{ctx::Ctx, target::Target, utils::TimedFuture, Error, Result};
+use crate::{Error, Result, ctx::Ctx, target::Target, utils::TimedFuture};
 
 pub async fn get_client(
     ctx: &Ctx,
@@ -44,7 +44,7 @@ pub async fn connect_with_auth(
         _ => {
             return Err(Error::Other(
                 "OAuth authentication is only supported for HTTP/HTTPS targets".to_string(),
-            ))
+            ));
         }
     }
 

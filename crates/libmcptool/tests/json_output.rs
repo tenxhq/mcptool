@@ -1,4 +1,4 @@
-use libmcptool::output::{listtools, Output};
+use libmcptool::output::{Output, listtools};
 use serde_json::json;
 use std::collections::HashMap;
 

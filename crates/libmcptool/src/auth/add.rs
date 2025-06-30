@@ -4,7 +4,7 @@ use rustyline::DefaultEditor;
 use tenx_mcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::time::timeout;
 
-use crate::{auth::validate_auth_name, ctx::Ctx, storage::StoredAuth, Error, Result};
+use crate::{Error, Result, auth::validate_auth_name, ctx::Ctx, storage::StoredAuth};
 
 pub struct AddCommandArgs {
     pub name: String,
@@ -272,7 +272,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
         Err(_) => {
             return Err(Error::Other(
                 "OAuth authorization timed out after 5 minutes".to_string(),
-            ))
+            ));
         }
     };
 

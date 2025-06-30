@@ -1,5 +1,5 @@
-use crate::output::Output;
 use crate::Result;
+use crate::output::Output;
 
 fn toolschema(output: &Output, schema: &tenx_mcp::schema::ToolSchema) -> Result<()> {
     if let Some(properties) = &schema.properties {

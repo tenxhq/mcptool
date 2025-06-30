@@ -5,6 +5,7 @@
 - Prefer to write durable integration tests over running commands/examples or
   creating disposable test scripts.
 - This is a free-standing tool, so don't create examples in an `examples/` directory.
+- Running fmt and clippy is a requirement before submitting code.
 
 
 ## Development Commands
@@ -26,13 +27,13 @@ cargo test test_name
 # Check code without building
 cargo check
 
-# Format code - always do this before submitting
-cargo fmt
-
 # Run linter
 cargo clippy --examples --tests
 
-# Run linter with automatic fixes
+# Format code - ALWAYS DO THIS BEFORE SUBMITTING CODE
+cargo fmt --all
+
+# Run linter with automatic fixes - ALWAYS DO THIS BEFORE SUBMITTING CODE
 cargo clippy --fix --allow-dirty --examples --tests
 ```
 

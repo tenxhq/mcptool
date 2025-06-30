@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use crate::{ctx::Ctx, Result};
+use crate::{Result, ctx::Ctx};
 
 pub async fn list_command(ctx: &Ctx) -> Result<()> {
     let storage = ctx.storage()?;

@@ -1,11 +1,11 @@
 use std::time::{Duration, SystemTime};
 
 use oauth2::{
-    basic::BasicClient, AuthUrl, ClientId, ClientSecret, RefreshToken, RequestTokenError,
-    TokenResponse, TokenUrl,
+    AuthUrl, ClientId, ClientSecret, RefreshToken, RequestTokenError, TokenResponse, TokenUrl,
+    basic::BasicClient,
 };
 
-use crate::{ctx::Ctx, Error, Result};
+use crate::{Error, Result, ctx::Ctx};
 
 pub async fn renew_command(ctx: &Ctx, name: String) -> Result<()> {
     ctx.output

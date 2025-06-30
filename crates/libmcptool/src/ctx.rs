@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use crate::{
+    Result,
     output::{LogLevel, Output},
     storage::TokenStorage,
-    Result,
 };
 
 pub const VERSION: &str = concat!(

@@ -1,6 +1,6 @@
 use clap::{Args, Parser, Subcommand};
-use libmcptool::{auth, client, connect, ctx, mcp, proxy, target::Target, testserver, LogLevel};
-use terminal_size::{terminal_size, Width};
+use libmcptool::{LogLevel, auth, client, connect, ctx, mcp, proxy, target::Target, testserver};
+use terminal_size::{Width, terminal_size};
 
 #[derive(Args)]
 struct TargetArgs {

@@ -1,4 +1,4 @@
-use crate::{ctx::Ctx, Error, Result};
+use crate::{Error, Result, ctx::Ctx};
 use rustyline::DefaultEditor;
 
 pub async fn remove_command(ctx: &Ctx, name: String) -> Result<()> {

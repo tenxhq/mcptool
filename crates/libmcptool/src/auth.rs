@@ -3,7 +3,7 @@ mod list;
 mod remove;
 mod renew;
 
-pub use add::{add_command, AddCommandArgs};
+pub use add::{AddCommandArgs, add_command};
 pub use list::list_command;
 pub use remove::remove_command;
 pub use renew::renew_command;
@@ -53,9 +53,10 @@ mod tests {
 
         // Verify error messages
         let err = validate_auth_name("my-auth").unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("Names can only contain letters, numbers, and underscores"));
+        assert!(
+            err.to_string()
+                .contains("Names can only contain letters, numbers, and underscores")
+        );
 
         let err = validate_auth_name("").unwrap_err();
         assert!(err.to_string().contains("cannot be empty"));
