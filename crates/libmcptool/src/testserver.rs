@@ -44,23 +44,6 @@ impl TestServerConn {
             output,
         }
     }
-
-    fn log_request(&self, method: &str, params: &str) {
-        let mut counter = self.request_counter.lock().unwrap();
-        *counter += 1;
-        let _ = self.output.h1(format!("request #{counter} - {method}"));
-        let _ = self.output.text(format!("parameters: {params}"));
-    }
-
-    fn log_response(&self, method: &str, response: &str) {
-        let _ = self.output.h1(format!("response - {method}"));
-        let _ = self.output.text(format!("result: {response}"));
-    }
-
-    fn log_notification(&self, notification: &str) {
-        let _ = self.output.h1("notification");
-        let _ = self.output.text(format!("content: {notification}"));
-    }
 }
 
 #[async_trait::async_trait]
@@ -83,15 +66,16 @@ impl ServerConn for TestServerConn {
         capabilities: ClientCapabilities,
         client_info: tenx_mcp::schema::Implementation,
     ) -> Result<InitializeResult> {
+        let _ = self.output.h1("initialize");
         let params = serde_json::json!({
             "protocol_version": protocol_version,
             "capabilities": capabilities,
             "client_info": client_info,
         });
-        self.log_request(
-            "initialize",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         let result = InitializeResult::new("mcptool-testserver")
             .with_version(env!("CARGO_PKG_VERSION"))
@@ -100,15 +84,18 @@ impl ServerConn for TestServerConn {
             .with_resources(true, true)
             .with_instructions("mcptool test server");
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("initialize", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
 
     async fn pong(&self, _context: &ServerCtx) -> Result<()> {
-        self.log_request("ping", "{}");
-        self.log_response("ping", "pong");
+        let _ = self.output.h1("pong");
+        let _ = self.output.text("parameters: {}");
+        let _ = self.output.text("result: pong");
         Ok(())
     }
 
@@ -117,13 +104,14 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<ListToolsResult> {
+        let _ = self.output.h1("list_tools");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        self.log_request(
-            "tools/list",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         let echo_tool = Tool::new(
             "echo",
@@ -141,8 +129,10 @@ impl ServerConn for TestServerConn {
 
         let result = ListToolsResult::default().with_tool(echo_tool);
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("tools/list", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
@@ -153,14 +143,15 @@ impl ServerConn for TestServerConn {
         name: String,
         arguments: Option<std::collections::HashMap<String, serde_json::Value>>,
     ) -> Result<tenx_mcp::schema::CallToolResult> {
+        let _ = self.output.h1("call_tool");
         let params = serde_json::json!({
             "name": name,
             "arguments": arguments,
         });
-        self.log_request(
-            "tools/call",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         if name != "echo" {
             return Err(Error::ToolNotFound(format!("Unknown tool: {name}")));
@@ -175,8 +166,10 @@ impl ServerConn for TestServerConn {
         let result =
             tenx_mcp::schema::CallToolResult::new().with_text_content(format!("Echo: {message}"));
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("tools/call", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
@@ -186,8 +179,11 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         notification: ClientNotification,
     ) -> Result<()> {
-        let notif_json = serde_json::to_string_pretty(&notification).unwrap();
-        self.log_notification(&notif_json);
+        let _ = self.output.h1("notification");
+        let _ = self.output.text(format!(
+            "content: {}",
+            serde_json::to_string_pretty(&notification).unwrap()
+        ));
         Ok(())
     }
 
@@ -196,13 +192,14 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<ListPromptsResult> {
+        let _ = self.output.h1("list_prompts");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        self.log_request(
-            "prompts/list",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         let greeting_prompt = Prompt {
             name: "greeting".to_string(),
@@ -250,8 +247,10 @@ impl ServerConn for TestServerConn {
             .with_prompt(greeting_prompt)
             .with_prompt(code_review_prompt);
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("prompts/list", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
@@ -262,14 +261,15 @@ impl ServerConn for TestServerConn {
         name: String,
         arguments: Option<std::collections::HashMap<String, String>>,
     ) -> Result<tenx_mcp::schema::GetPromptResult> {
+        let _ = self.output.h1("get_prompt");
         let params = serde_json::json!({
             "name": name,
             "arguments": arguments,
         });
-        self.log_request(
-            "prompts/get",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         let result = match name.as_str() {
             "greeting" => {
@@ -316,8 +316,10 @@ impl ServerConn for TestServerConn {
             _ => return Err(Error::MethodNotFound(format!("Unknown prompt: {name}"))),
         };
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("prompts/get", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
@@ -327,13 +329,14 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<ListResourcesResult> {
+        let _ = self.output.h1("list_resources");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        self.log_request(
-            "resources/list",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         let log_resource = Resource::new("server-log", "log://testserver/current")
             .with_description("Current test server log")
@@ -353,20 +356,23 @@ impl ServerConn for TestServerConn {
             .with_resource(sample_data_resource)
             .with_resource(metrics_resource);
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("resources/list", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
 
     async fn read_resource(&self, _context: &ServerCtx, uri: String) -> Result<ReadResourceResult> {
+        let _ = self.output.h1("read_resource");
         let params = serde_json::json!({
             "uri": uri,
         });
-        self.log_request(
-            "resources/read",
-            &serde_json::to_string_pretty(&params).unwrap(),
-        );
+        let _ = self.output.text(format!(
+            "parameters: {}",
+            serde_json::to_string_pretty(&params).unwrap()
+        ));
 
         let result = match uri.as_str() {
             "log://testserver/current" => {
@@ -423,8 +429,10 @@ impl ServerConn for TestServerConn {
             _ => return Err(Error::ResourceNotFound { uri }),
         };
 
-        let response = serde_json::to_string_pretty(&result).unwrap();
-        self.log_response("resources/read", &response);
+        let _ = self.output.text(format!(
+            "result: {}",
+            serde_json::to_string_pretty(&result).unwrap()
+        ));
 
         Ok(result)
     }
