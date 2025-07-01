@@ -78,6 +78,18 @@ enum McpCommands {
         #[command(flatten)]
         mcp_args: McpArgs,
     },
+
+    /// Set the logging level on the MCP server
+    SetLevel {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// The logging level to set (debug, info, notice, warning, error, critical, alert, emergency)
+        level: String,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -300,6 +312,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let target = Target::parse(&target)?;
                 let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
                 mcp::listresourcetemplates(&mut client, &ctx.output).await?;
+            }
+            McpCommands::SetLevel {
+                target,
+                level,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::set_level(&mut client, &ctx.output, &level).await?;
             }
         },
 

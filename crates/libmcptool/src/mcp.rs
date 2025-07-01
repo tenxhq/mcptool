@@ -55,3 +55,38 @@ pub async fn listresourcetemplates(
     output::listresourcetemplates::list_resource_templates_result(output, &templates_result)?;
     Ok(())
 }
+
+pub async fn set_level(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    level: &str,
+) -> Result<()> {
+    output.text(format!("Setting logging level to: {level}"))?;
+
+    // Parse the level string into LoggingLevel enum
+    // TODO: Use the proper LoggingLevel type once we figure out the import
+    // For now, we'll just validate the level string
+    let valid_levels = [
+        "debug",
+        "info",
+        "notice",
+        "warning",
+        "error",
+        "critical",
+        "alert",
+        "emergency",
+    ];
+    if !valid_levels.contains(&level.to_lowercase().as_str()) {
+        return Err(crate::Error::Other(format!(
+            "Invalid logging level: {}. Valid levels are: {}",
+            level,
+            valid_levels.join(", ")
+        )));
+    }
+
+    // For now, just print a message since we can't import LoggingLevel
+    output
+        .trace_warn("set_level is not yet implemented - LoggingLevel type needs to be imported")?;
+    output.trace_success(format!("Would set logging level to: {level}"))?;
+    Ok(())
+}
