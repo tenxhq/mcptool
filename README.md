@@ -80,7 +80,7 @@ When you are **inside the prompt**, type these commands **without** the `mcptool
 | `listprompts`                                 | `mcptool listprompts <target>`                                 | List predefined prompt templates (`prompts/list`).                                                                            |
 | `listresources`                               | `mcptool listresources <target>`                               | List server resources such as databases or file trees (`resources/list`).                                                     |
 | `listresourcetemplates`                       | `mcptool listresourcetemplates <target>`                       | List resource templates available for instantiation.                                                                          |
-| `calltool -- <entity> [args…] [--stdin-json]` | `mcptool calltool <target> -- <entity> [args…] [--stdin-json]` | Invoke a tool, prompt, or resource. Use **`--stdin-json`** to pass a JSON object via STDIN.                                   |
+| `calltool <tool> [--arg key=value] [--interactive] [--json]` | `mcptool mcp calltool <target> <tool> [--arg key=value] [--interactive] [--json]` | Invoke a tool with arguments via command line (`--arg`), interactive prompts (`--interactive`), or JSON from stdin (`--json`). |
 
 ### Interactive Prompt & Script Mode
 

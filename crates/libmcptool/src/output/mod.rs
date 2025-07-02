@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod calltool;
 pub mod initresult;
 pub mod listprompts;
 pub mod listresources;
@@ -352,6 +353,10 @@ impl Output {
 
     pub fn trace_debug(&self, message: impl Into<String>) -> io::Result<()> {
         self.status(message, "[DEBUG]", SolarizedDark::MAGENTA, false)
+    }
+
+    pub fn trace_info(&self, message: impl Into<String>) -> io::Result<()> {
+        self.status(message, "[INFO]", SolarizedDark::BLUE, false)
     }
 
     pub fn success(&self, message: impl Into<String>) -> io::Result<()> {

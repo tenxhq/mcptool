@@ -1,4 +1,4 @@
-use crate::{Result, output, utils::TimedFuture};
+use crate::{Result, calltool, output, utils::TimedFuture};
 use tenx_mcp::{Client, ServerAPI, schema::InitializeResult};
 
 pub async fn ping(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
@@ -57,7 +57,7 @@ pub async fn listresourcetemplates(
 }
 
 pub async fn set_level(
-    client: &mut Client<()>,
+    _client: &mut Client<()>,
     output: &crate::output::Output,
     level: &str,
 ) -> Result<()> {
@@ -89,4 +89,60 @@ pub async fn set_level(
         .trace_warn("set_level is not yet implemented - LoggingLevel type needs to be imported")?;
     output.trace_success(format!("Would set logging level to: {level}"))?;
     Ok(())
+}
+
+pub async fn calltool(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    tool_name: &str,
+    args: Vec<String>,
+    interactive: bool,
+    json: bool,
+) -> Result<()> {
+    // Validate input modes
+    let mode_count = [!args.is_empty(), interactive, json]
+        .iter()
+        .filter(|&&x| x)
+        .count();
+    if mode_count == 0 {
+        return Err(crate::Error::Other(
+            "Must specify one of: --interactive, --json, or --arg key=value arguments".to_string(),
+        ));
+    }
+    if mode_count > 1 {
+        return Err(crate::Error::Other(
+            "Cannot combine --interactive, --json, and --arg modes".to_string(),
+        ));
+    }
+
+    output.text(format!("Calling tool: {tool_name}"))?;
+
+    // First, get tool schema to understand required parameters
+    let tools_result = client
+        .list_tools(None)
+        .timed("   fetching tools", output)
+        .await?;
+
+    let tool = tools_result
+        .tools
+        .iter()
+        .find(|t| t.name == tool_name)
+        .ok_or_else(|| crate::Error::Other(format!("Tool '{tool_name}' not found")))?;
+
+    // Parse arguments based on mode
+    let arguments = if json {
+        calltool::json::parse_json_arguments(output)?
+    } else if interactive {
+        calltool::interactive::parse_interactive_arguments(tool, output)?
+    } else {
+        calltool::cmdline::parse_command_line_arguments(args, output)?
+    };
+
+    // Call the tool
+    let result = client
+        .call_tool(tool_name, arguments)
+        .timed("   response", output)
+        .await?;
+
+    output::calltool::call_tool_result(output, &result)
 }

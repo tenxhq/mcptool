@@ -90,6 +90,30 @@ enum McpCommands {
         #[command(flatten)]
         mcp_args: McpArgs,
     },
+
+    /// Call an MCP tool with various input modes
+    Calltool {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// Name of the tool to call
+        tool_name: String,
+
+        /// Arguments in key=value format (can be specified multiple times)
+        #[arg(long = "arg", short = 'a')]
+        args: Vec<String>,
+
+        /// Interactive mode: prompt for each tool parameter
+        #[arg(long, short)]
+        interactive: bool,
+
+        /// JSON mode: read arguments from stdin as JSON
+        #[arg(long, short)]
+        json: bool,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -321,6 +345,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let target = Target::parse(&target)?;
                 let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
                 mcp::set_level(&mut client, &ctx.output, &level).await?;
+            }
+            McpCommands::Calltool {
+                target,
+                tool_name,
+                args,
+                interactive,
+                json,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::calltool(
+                    &mut client,
+                    &ctx.output,
+                    &tool_name,
+                    args,
+                    interactive,
+                    json,
+                )
+                .await?;
             }
         },
 
