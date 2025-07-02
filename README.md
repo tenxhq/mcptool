@@ -95,7 +95,7 @@ Connected to api.acme.ai (tcp, proto‑rev 9)
 107 ms
 > listtools
 summarize      translate      moderate
-> calltool summarize --text "Hello world"
+> calltool summarize --arg text="Hello world"
 {"summary":"Hello 🌍"}
 > exit
 ```
@@ -142,11 +142,14 @@ mcptool mcp listtools auth://github
 mcptool calltool tcp://dev.acme.ai:7780 -- status
 
 # Execute a tool with arguments on a local stdio endpoint
-mcptool calltool "cmd://./my‑stdio‑server --some --argument" -- summarize --text "Hello world"
+mcptool mcp calltool "cmd://./my‑stdio‑server --some --argument" summarize --arg text="Hello world"
+
+# Use interactive mode to be prompted for each parameter
+mcptool mcp calltool api.acme.ai chat.complete --interactive
 
 # Pass a complex JSON payload via STDIN
-cat complex_args.json | mcptool calltool api.acme.ai -- chat.complete --stdin-json
+echo '{"text": "Hello world", "model": "gpt-4"}' | mcptool mcp calltool api.acme.ai chat.complete --json
 
 # Run a scripted sequence without entering the prompt
-mcptool connect api.acme.ai --script mysession.mcp --quiet | mcptool calltool api.acme.ai -- chat.complete --stdin-json
+mcptool connect api.acme.ai --script mysession.mcp
 ```
