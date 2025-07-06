@@ -238,7 +238,11 @@ enum Commands {
         #[arg(long)]
         stdio: bool,
 
-        /// Port to listen on (for HTTP transport)
+        /// Use TCP transport instead of HTTP
+        #[arg(long)]
+        tcp: bool,
+
+        /// Port to listen on (for HTTP/TCP transport)
         #[arg(short, long, default_value = "8080")]
         port: u16,
     },
@@ -377,8 +381,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
 
-        Commands::Testserver { stdio, port } => {
-            testserver::run_test_server(&ctx, stdio, port).await?;
+        Commands::Testserver { stdio, tcp, port } => {
+            testserver::run_test_server(&ctx, stdio, tcp, port).await?;
         }
 
         Commands::Auth { command } => match command {

@@ -1,6 +1,6 @@
-use std::sync::{Arc, Mutex};
-
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use tenx_mcp::{
     Error, Result, Server, ServerConn, ServerCtx,
     schema::{
@@ -33,7 +33,7 @@ struct UsersResponse {
 /// A test server connection that logs all interactions verbosely
 #[derive(Clone)]
 struct TestServerConn {
-    request_counter: Arc<Mutex<u64>>,
+    request_counter: Arc<AtomicU64>,
     output: Output,
     log_level: Arc<Mutex<LoggingLevel>>,
 }
@@ -41,9 +41,9 @@ struct TestServerConn {
 impl TestServerConn {
     fn new(output: Output) -> Self {
         Self {
-            request_counter: Arc::new(Mutex::new(0)),
+            request_counter: Arc::new(AtomicU64::new(0)),
             output,
-            log_level: Arc::new(Mutex::new(LoggingLevel::Info)),
+            log_level: Arc::new(Mutex::new(LoggingLevel::Error)),
         }
     }
 
@@ -548,10 +548,9 @@ impl ServerConn for TestServerConn {
                 ReadResourceResult::new().with_json(uri, &response).unwrap()
             }
             "metrics://testserver/stats" => {
-                let counter = self.request_counter.lock().unwrap();
                 let metrics = format!(
                     "Server Metrics\n==============\n\nTotal requests processed: {}\nUptime: N/A\nMemory usage: N/A\nActive connections: 1",
-                    *counter
+                    self.request_counter.load(Ordering::Relaxed)
                 );
                 ReadResourceResult::new().with_text(uri, metrics)
             }
@@ -636,7 +635,15 @@ impl ServerConn for TestServerConn {
     }
 }
 
-pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
+pub async fn run_test_server(ctx: &Ctx, stdio: bool, tcp: bool, port: u16) -> Result<()> {
+    // Validate that only one transport is specified
+    let transport_count = [stdio, tcp].iter().filter(|&&x| x).count();
+    if transport_count > 1 {
+        return Err(Error::InvalidConfiguration(
+            "Only one transport can be specified: --stdio, --tcp, or HTTP (default)".to_string(),
+        ));
+    }
+
     let output = if stdio {
         // In stdio mode, silence all output
         ctx.output.clone().with_quiet(true)
@@ -663,6 +670,13 @@ pub async fn run_test_server(ctx: &Ctx, stdio: bool, port: u16) -> Result<()> {
 
     if stdio {
         server.serve_stdio().await?;
+    } else if tcp {
+        let addr = format!("127.0.0.1:{port}");
+        let _ = output.text("Transport: TCP");
+        let _ = output.trace_success(format!("Listening on: tcp://{addr}"));
+        let _ = output.text("Press Ctrl+C to stop the server");
+
+        server.serve_tcp(&addr).await?;
     } else {
         let addr = format!("127.0.0.1:{port}");
         let _ = output.text("Transport: HTTP");
