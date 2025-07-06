@@ -5,8 +5,8 @@ use tenx_mcp::{
     Error, Result, Server, ServerConn, ServerCtx,
     schema::{
         ClientCapabilities, ClientNotification, Cursor, InitializeResult, ListPromptsResult,
-        ListResourcesResult, ListToolsResult, Prompt, PromptArgument, ReadResourceResult, Resource,
-        ServerCapabilities, Tool, ToolSchema,
+        ListResourcesResult, ListToolsResult, LoggingLevel, Prompt, PromptArgument,
+        ReadResourceResult, Resource, ServerCapabilities, ServerNotification, Tool, ToolSchema,
     },
 };
 
@@ -35,6 +35,7 @@ struct UsersResponse {
 struct TestServerConn {
     request_counter: Arc<Mutex<u64>>,
     output: Output,
+    log_level: Arc<Mutex<LoggingLevel>>,
 }
 
 impl TestServerConn {
@@ -42,7 +43,51 @@ impl TestServerConn {
         Self {
             request_counter: Arc::new(Mutex::new(0)),
             output,
+            log_level: Arc::new(Mutex::new(LoggingLevel::Info)),
         }
+    }
+
+    async fn send_notification(
+        &self,
+        context: &ServerCtx,
+        notification: ServerNotification,
+    ) -> Result<()> {
+        let _ = self.output.h1("sending notification");
+        let _ = self.output.text(format!(
+            "content: {}",
+            serde_json::to_string_pretty(&notification).unwrap()
+        ));
+
+        context.notify(notification)
+    }
+
+    async fn send_log_message(
+        &self,
+        context: &ServerCtx,
+        level: LoggingLevel,
+        message: String,
+    ) -> Result<()> {
+        let current_level = *self.log_level.lock().unwrap();
+
+        // Check if message should be sent based on current log level
+        if self.should_log_message(&level, &current_level) {
+            let notification = ServerNotification::LoggingMessage {
+                level,
+                logger: Some("testserver".to_string()),
+                data: serde_json::json!({ "message": message }),
+            };
+            self.send_notification(context, notification).await
+        } else {
+            Ok(())
+        }
+    }
+
+    fn should_log_message(
+        &self,
+        message_level: &LoggingLevel,
+        current_level: &LoggingLevel,
+    ) -> bool {
+        message_level >= current_level
     }
 }
 
@@ -139,7 +184,7 @@ impl ServerConn for TestServerConn {
 
     async fn call_tool(
         &self,
-        _context: &ServerCtx,
+        context: &ServerCtx,
         name: String,
         arguments: Option<tenx_mcp::Arguments>,
     ) -> Result<tenx_mcp::schema::CallToolResult> {
@@ -153,7 +198,21 @@ impl ServerConn for TestServerConn {
             serde_json::to_string_pretty(&params).unwrap()
         ));
 
+        // Send notification about tool call
+        self.send_log_message(
+            context,
+            LoggingLevel::Debug,
+            format!("Tool '{}' called with arguments: {:?}", name, arguments),
+        )
+        .await?;
+
         if name != "echo" {
+            self.send_log_message(
+                context,
+                LoggingLevel::Error,
+                format!("Unknown tool requested: {}", name),
+            )
+            .await?;
             return Err(Error::ToolNotFound(format!("Unknown tool: {name}")));
         }
 
@@ -170,12 +229,20 @@ impl ServerConn for TestServerConn {
             serde_json::to_string_pretty(&result).unwrap()
         ));
 
+        // Send notification about successful tool execution
+        self.send_log_message(
+            context,
+            LoggingLevel::Info,
+            format!("Successfully executed tool '{}'", name),
+        )
+        .await?;
+
         Ok(result)
     }
 
     async fn notification(
         &self,
-        _context: &ServerCtx,
+        context: &ServerCtx,
         notification: ClientNotification,
     ) -> Result<()> {
         let _ = self.output.h1("notification");
@@ -183,6 +250,65 @@ impl ServerConn for TestServerConn {
             "content: {}",
             serde_json::to_string_pretty(&notification).unwrap()
         ));
+
+        // Send a demo notification back to the client
+        self.send_log_message(
+            context,
+            LoggingLevel::Info,
+            format!("Received client notification: {:?}", notification),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    async fn set_level(&self, context: &ServerCtx, level: LoggingLevel) -> Result<()> {
+        let _ = self.output.h1("set_level");
+        let _ = self.output.text(format!(
+            "level: {}",
+            serde_json::to_string_pretty(&level).unwrap()
+        ));
+
+        // Update the log level
+        *self.log_level.lock().unwrap() = level;
+
+        // Acknowledge the level change
+        self.send_log_message(
+            context,
+            LoggingLevel::Info,
+            format!("Log level changed to: {:?}", level),
+        )
+        .await?;
+
+        // Send some demo messages at different levels to demonstrate filtering
+        self.send_log_message(
+            context,
+            LoggingLevel::Debug,
+            "This is a debug message".to_string(),
+        )
+        .await?;
+
+        self.send_log_message(
+            context,
+            LoggingLevel::Info,
+            "This is an info message".to_string(),
+        )
+        .await?;
+
+        self.send_log_message(
+            context,
+            LoggingLevel::Warning,
+            "This is a warning message".to_string(),
+        )
+        .await?;
+
+        self.send_log_message(
+            context,
+            LoggingLevel::Error,
+            "This is an error message".to_string(),
+        )
+        .await?;
+
         Ok(())
     }
 
@@ -359,7 +485,7 @@ impl ServerConn for TestServerConn {
         Ok(result)
     }
 
-    async fn read_resource(&self, _context: &ServerCtx, uri: String) -> Result<ReadResourceResult> {
+    async fn read_resource(&self, context: &ServerCtx, uri: String) -> Result<ReadResourceResult> {
         let _ = self.output.h1("read_resource");
         let params = serde_json::json!({
             "uri": uri,
@@ -368,6 +494,14 @@ impl ServerConn for TestServerConn {
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
+
+        // Send notification about resource access
+        self.send_log_message(
+            context,
+            LoggingLevel::Debug,
+            format!("Resource accessed: {}", uri),
+        )
+        .await?;
 
         let result = match uri.as_str() {
             "log://testserver/current" => {

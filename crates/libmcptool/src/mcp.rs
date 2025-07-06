@@ -1,5 +1,8 @@
 use crate::{Result, calltool, output, utils::TimedFuture};
-use tenx_mcp::{Client, ServerAPI, schema::InitializeResult};
+use tenx_mcp::{
+    Client, ServerAPI,
+    schema::{InitializeResult, LoggingLevel},
+};
 
 pub async fn ping(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
     output.text("Pinging")?;
@@ -57,37 +60,37 @@ pub async fn listresourcetemplates(
 }
 
 pub async fn set_level(
-    _client: &mut Client<()>,
+    client: &mut Client<()>,
     output: &crate::output::Output,
     level: &str,
 ) -> Result<()> {
     output.text(format!("Setting logging level to: {level}"))?;
 
     // Parse the level string into LoggingLevel enum
-    // TODO: Use the proper LoggingLevel type once we figure out the import
-    // For now, we'll just validate the level string
-    let valid_levels = [
-        "debug",
-        "info",
-        "notice",
-        "warning",
-        "error",
-        "critical",
-        "alert",
-        "emergency",
-    ];
-    if !valid_levels.contains(&level.to_lowercase().as_str()) {
-        return Err(crate::Error::Other(format!(
-            "Invalid logging level: {}. Valid levels are: {}",
-            level,
-            valid_levels.join(", ")
-        )));
-    }
+    let logging_level = match level.to_lowercase().as_str() {
+        "debug" => LoggingLevel::Debug,
+        "info" => LoggingLevel::Info,
+        "notice" => LoggingLevel::Notice,
+        "warning" => LoggingLevel::Warning,
+        "error" => LoggingLevel::Error,
+        "critical" => LoggingLevel::Critical,
+        "alert" => LoggingLevel::Alert,
+        "emergency" => LoggingLevel::Emergency,
+        _ => {
+            return Err(crate::Error::Other(format!(
+                "Invalid logging level: {}. Valid levels are: debug, info, notice, warning, error, critical, alert, emergency",
+                level
+            )));
+        }
+    };
 
-    // For now, just print a message since we can't import LoggingLevel
-    output
-        .trace_warn("set_level is not yet implemented - LoggingLevel type needs to be imported")?;
-    output.trace_success(format!("Would set logging level to: {level}"))?;
+    // Send the set level request to the server
+    client
+        .set_level(logging_level)
+        .timed("    response", output)
+        .await?;
+
+    output.trace_success(format!("Set logging level to: {level}"))?;
     Ok(())
 }
 

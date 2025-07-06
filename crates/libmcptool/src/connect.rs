@@ -51,6 +51,8 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                             "  listresourcetemplates - List all available resource templates from the server",
                         )?;
                         ctx.output
+                            .text("  setlevel <level> - Set the logging level on the server")?;
+                        ctx.output
                             .text("  help          - Show this help message")?;
                         ctx.output.text("  quit/exit     - Exit the REPL")?
                     }
@@ -86,6 +88,20 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                             Err(e) => ctx
                                 .output
                                 .trace_error(format!("Failed to list resource templates: {e}"))?,
+                        }
+                    }
+                    cmd if cmd.starts_with("setlevel ") => {
+                        let level = cmd.strip_prefix("setlevel ").unwrap_or("").trim();
+                        if level.is_empty() {
+                            ctx.output.trace_error("Usage: setlevel <level>")?;
+                            ctx.output.text("Valid levels: debug, info, notice, warning, error, critical, alert, emergency")?;
+                        } else {
+                            match mcp::set_level(&mut client, &ctx.output, level).await {
+                                Ok(_) => {}
+                                Err(e) => ctx
+                                    .output
+                                    .trace_error(format!("Failed to set level: {e}"))?,
+                            }
                         }
                     }
                     _ => ctx.output.trace_warn(format!(
