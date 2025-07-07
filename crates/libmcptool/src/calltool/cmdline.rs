@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn test_float_argument() {
         let output = create_test_output();
-        let args = vec!["rate=3.14".to_string(), "zero=0.0".to_string()];
+        let args = vec!["rate=8.14".to_string(), "zero=0.0".to_string()];
         let result = parse_command_line_arguments(args, &output)
             .unwrap()
             .unwrap();
@@ -138,7 +138,7 @@ mod tests {
         assert_eq!(map.len(), 2);
         assert_eq!(
             map.get("rate").unwrap(),
-            &serde_json::Value::Number(serde_json::Number::from_f64(3.14).unwrap())
+            &serde_json::Value::Number(serde_json::Number::from_f64(8.14).unwrap())
         );
         assert_eq!(
             map.get("zero").unwrap(),

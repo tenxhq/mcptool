@@ -2,6 +2,7 @@ pub mod args;
 pub mod auth;
 pub mod calltool;
 pub mod client;
+pub mod command;
 pub mod connect;
 pub mod ctx;
 pub mod error;

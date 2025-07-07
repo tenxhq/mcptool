@@ -309,7 +309,7 @@ mod tests {
             }),
         );
         let tool = create_test_tool(properties, Some(vec!["rate".to_string()]));
-        let input = "3.14\n";
+        let input = "8.14\n";
         let mut reader = Cursor::new(input);
         let mut writer = Vec::new();
 
@@ -323,7 +323,7 @@ mod tests {
         assert_eq!(map.len(), 1);
         assert_eq!(
             map.get("rate").unwrap(),
-            &serde_json::Value::Number(serde_json::Number::from_f64(3.14).unwrap())
+            &serde_json::Value::Number(serde_json::Number::from_f64(8.14).unwrap())
         );
     }
 
@@ -477,7 +477,7 @@ mod tests {
             }),
         );
         let tool = create_test_tool(properties, Some(vec!["rate".to_string()]));
-        let input = "not_a_number\n3.14\n";
+        let input = "not_a_number\n8.14\n";
         let mut reader = Cursor::new(input);
         let mut writer = Vec::new();
 
@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(map.len(), 1);
         assert_eq!(
             map.get("rate").unwrap(),
-            &serde_json::Value::Number(serde_json::Number::from_f64(3.14).unwrap())
+            &serde_json::Value::Number(serde_json::Number::from_f64(8.14).unwrap())
         );
 
         // Check that error message was written

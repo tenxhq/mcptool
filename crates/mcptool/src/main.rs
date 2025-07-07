@@ -1,5 +1,11 @@
 use clap::{Args, Parser, Subcommand};
-use libmcptool::{LogLevel, auth, client, connect, ctx, mcp, proxy, target::Target, testserver};
+use libmcptool::{
+    LogLevel, auth,
+    command::{CliMcpCommand, execute_mcp_command},
+    connect, ctx, proxy,
+    target::Target,
+    testserver,
+};
 use terminal_size::{Width, terminal_size};
 
 #[derive(Args)]
@@ -16,171 +22,6 @@ struct ProxyArgs {
     /// File path to log all proxy traffic
     #[arg(long)]
     log_file: std::path::PathBuf,
-}
-
-#[derive(Args)]
-struct McpArgs {
-    // No longer needed - auth is now handled via auth:// target syntax
-}
-
-#[derive(Subcommand)]
-enum McpCommands {
-    /// Send a ping request to an MCP server
-    Ping {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// List all MCP tools from a server
-    Listtools {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Initialize connection and display server information
-    Init {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// List all MCP resources from a server
-    Listresources {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// List all MCP prompts from a server
-    Listprompts {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// List all MCP resource templates from a server
-    Listresourcetemplates {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Set the logging level on the MCP server
-    SetLevel {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// The logging level to set (debug, info, notice, warning, error, critical, alert, emergency)
-        level: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Call an MCP tool with various input modes
-    Calltool {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// Name of the tool to call
-        tool_name: String,
-
-        /// Arguments in key=value format (can be specified multiple times)
-        #[arg(long = "arg", short = 'a')]
-        args: Vec<String>,
-
-        /// Interactive mode: prompt for each tool parameter
-        #[arg(long, short)]
-        interactive: bool,
-
-        /// JSON mode: read arguments from stdin as JSON
-        #[arg(long, short)]
-        json: bool,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Read a resource by URI
-    ReadResource {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// URI of the resource to read
-        uri: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Get a prompt by name with optional arguments
-    GetPrompt {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// Name of the prompt to get
-        name: String,
-
-        /// Arguments in key=value format (can be specified multiple times)
-        #[arg(long = "arg", short = 'a')]
-        args: Vec<String>,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Subscribe to resource update notifications
-    SubscribeResource {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// URI of the resource to subscribe to
-        uri: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Unsubscribe from resource update notifications
-    UnsubscribeResource {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// URI of the resource to unsubscribe from
-        uri: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
-
-    /// Get completion suggestions for prompt or resource arguments
-    Complete {
-        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
-        target: String,
-
-        /// Reference to complete (e.g., "resource://uri" or "prompt://name")
-        reference: String,
-
-        /// Name of the argument to complete
-        argument: String,
-
-        #[command(flatten)]
-        mcp_args: McpArgs,
-    },
 }
 
 #[derive(Subcommand)]
@@ -283,8 +124,8 @@ enum Commands {
 
     /// MCP invocation commands (ping, listtools, etc.)
     Mcp {
-        #[command(subcommand)]
-        command: McpCommands,
+        #[command(flatten)]
+        mcp_command: CliMcpCommand,
     },
 
     /// Connect to an MCP server and start an interactive REPL
@@ -359,132 +200,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        Commands::Mcp { command } => match command {
-            McpCommands::Ping {
-                target,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::ping(&mut client, &ctx.output).await?;
-            }
-            McpCommands::Listtools {
-                target,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::listtools(&mut client, &ctx.output).await?;
-            }
-            McpCommands::Init {
-                target,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (_client, init_result) = client::get_client(&ctx, &target).await?;
-                mcp::init(&init_result, &ctx.output)?;
-            }
-            McpCommands::Listresources {
-                target,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::listresources(&mut client, &ctx.output).await?;
-            }
-            McpCommands::Listprompts {
-                target,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::listprompts(&mut client, &ctx.output).await?;
-            }
-            McpCommands::Listresourcetemplates {
-                target,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::listresourcetemplates(&mut client, &ctx.output).await?;
-            }
-            McpCommands::SetLevel {
-                target,
-                level,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::set_level(&mut client, &ctx.output, &level).await?;
-            }
-            McpCommands::Calltool {
-                target,
-                tool_name,
-                args,
-                interactive,
-                json,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::calltool(
-                    &mut client,
-                    &ctx.output,
-                    &tool_name,
-                    args,
-                    interactive,
-                    json,
-                )
-                .await?;
-            }
-            McpCommands::ReadResource {
-                target,
-                uri,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::read_resource(&mut client, &ctx.output, &uri).await?;
-            }
-            McpCommands::GetPrompt {
-                target,
-                name,
-                args,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::get_prompt(&mut client, &ctx.output, &name, args).await?;
-            }
-            McpCommands::SubscribeResource {
-                target,
-                uri,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::subscribe_resource(&mut client, &ctx.output, &uri).await?;
-            }
-            McpCommands::UnsubscribeResource {
-                target,
-                uri,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::unsubscribe_resource(&mut client, &ctx.output, &uri).await?;
-            }
-            McpCommands::Complete {
-                target,
-                reference,
-                argument,
-                mcp_args: _,
-            } => {
-                let target = Target::parse(&target)?;
-                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-                mcp::complete(&mut client, &ctx.output, &reference, &argument).await?;
-            }
-        },
+        Commands::Mcp { mcp_command } => {
+            execute_mcp_command(mcp_command.command, &mcp_command.target, &ctx)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        }
 
         Commands::Connect { target } => {
             connect::connect_command(&ctx, target).await?;

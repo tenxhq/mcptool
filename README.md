@@ -63,9 +63,19 @@ a local command to be spawned in **stdio** mode, or a stored authentication entr
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mcptool connect <target> [--script <file>]` | Connect to the target. Without **`--script`** you drop into an interactive prompt (`>`). With **`--script`** mcptool reads one sub‑command per line from *file*, executes them sequentially, prints results, and exits. |
 | `mcptool proxy <target> --log-file <file>`   | Transparently open a stdio transport, and proxy all traffic to target, recording it to *file*.                                                                                                                    |
+| `mcptool testserver [--stdio] [--tcp] [--port <port>]` | Run a test MCP server with verbose logging. Use `--stdio` for stdio transport, `--tcp` for TCP transport, or default HTTP on specified port. |
 | `mcptool version`                            | Display the mcptool build version & linked MCP revision.                                                                                                                                                                |
 | `mcptool help [sub-command]`                 | Show contextual help for any command.                                                                                                                                                                                   |
 
+### Global Options
+
+| Option                                       | Purpose                                                                                                                                                                                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--json`                                     | Output results in JSON format                                                                                                                                                                                          |
+| `--logs <LEVEL>`                             | Enable logging with specified level (debug, info, notice, warning, error, critical, alert, emergency)                                                                                                                   |
+| `--color`                                    | Force color output                                                                                                                                                                                                      |
+| `--no-color`                                 | Disable color output                                                                                                                                                                                                    |
+| `--quiet`                                    | Suppress all output including JSON output                                                                                                                                                                               |
 
 ### MCP Commands (usable inside the prompt *or* from the shell with a `<target>`)
 
@@ -74,13 +84,18 @@ When you are **inside the prompt**, type these commands **without** the `mcptool
 | Prompt form                                   | Shell form                                                     | Purpose                                                                                                                       |
 | --------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `ping`                                        | `mcptool mcp ping <target>`                                    | Measure round‑trip latency.                                                                                                   |
-| `status`                                      | `mcptool status <target>`                                      | Fetch server status/handshake info.                                                                                           |
-| `probe`                                       | `mcptool probe <target>`                                       | Run all discovery calls (`listtools`, `listprompts`, `listresources`, `listresourcetemplates`) and print a complete overview. |
+| `init`                                        | `mcptool mcp init <target>`                                    | Initialize connection and display server information.                                                                         |
 | `listtools`                                   | `mcptool mcp listtools <target>`                               | List all MCP tools (`tools/list`).                                                                                            |
-| `listprompts`                                 | `mcptool listprompts <target>`                                 | List predefined prompt templates (`prompts/list`).                                                                            |
-| `listresources`                               | `mcptool listresources <target>`                               | List server resources such as databases or file trees (`resources/list`).                                                     |
-| `listresourcetemplates`                       | `mcptool listresourcetemplates <target>`                       | List resource templates available for instantiation.                                                                          |
-| `calltool <tool> [--arg key=value] [--interactive] [--json]` | `mcptool mcp calltool <target> <tool> [--arg key=value] [--interactive] [--json]` | Invoke a tool with arguments via command line (`--arg`), interactive prompts (`--interactive`), or JSON from stdin (`--json`). |
+| `listprompts`                                 | `mcptool mcp listprompts <target>`                             | List predefined prompt templates (`prompts/list`).                                                                            |
+| `listresources`                               | `mcptool mcp listresources <target>`                           | List server resources such as databases or file trees (`resources/list`).                                                     |
+| `listresourcetemplates`                       | `mcptool mcp listresourcetemplates <target>`                   | List resource templates available for instantiation.                                                                          |
+| `setlevel <level>`                            | `mcptool mcp setlevel <target> <level>`                        | Set the logging level on the MCP server.                                                                                     |
+| `calltool <tool> [options]`                   | `mcptool mcp calltool <target> <tool> [options]`              | Invoke a tool with arguments. Options: `--arg key=value`, `--interactive`, `--json`                                         |
+| `readresource <uri>`                          | `mcptool mcp readresource <target> <uri>`                      | Read a resource by URI.                                                                                                       |
+| `getprompt <name> [--arg key=value]`          | `mcptool mcp getprompt <target> <name> [--arg key=value]`      | Get a prompt by name with optional arguments.                                                                                |
+| `subscriberesource <uri>`                     | `mcptool mcp subscriberesource <target> <uri>`                 | Subscribe to resource update notifications.                                                                                   |
+| `unsubscriberesource <uri>`                   | `mcptool mcp unsubscriberesource <target> <uri>`               | Unsubscribe from resource update notifications.                                                                               |
+| `complete <reference> <argument>`             | `mcptool mcp complete <target> <reference> <argument>`         | Get completion suggestions for prompt or resource arguments.                                                                  |
 
 ### Interactive Prompt & Script Mode
 
