@@ -1,17 +1,21 @@
 use std::sync::Arc;
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
 use tenx_mcp::{
-    Client,
+    Client, ClientConn,
     schema::{ClientCapabilities, InitializeResult},
 };
 
 use crate::ctx::VERSION;
 use crate::{Error, Result, ctx::Ctx, target::Target, utils::TimedFuture};
 
-pub async fn get_client(
+pub async fn get_client(ctx: &Ctx, target: &Target) -> Result<(Client<()>, InitializeResult)> {
+    get_client_with_connection(ctx, target, ()).await
+}
+pub async fn get_client_with_connection<C: ClientConn + Send + 'static>(
     ctx: &Ctx,
     target: &Target,
-) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult)> {
+    conn: C,
+) -> Result<(Client<C>, InitializeResult)> {
     match target {
         Target::Auth { name } => {
             let storage = ctx.storage()?;
@@ -19,25 +23,26 @@ pub async fn get_client(
             ctx.output
                 .text(format!("Using auth {name} ({})", auth_entry.server_url))?;
             let resolved_target = Target::parse(&auth_entry.server_url)?;
-            connect_with_auth(ctx, &resolved_target, name)
+            connect_with_auth(ctx, &resolved_target, name, conn)
                 .timed("Connected and initialized", &ctx.output)
                 .await
         }
         _ => {
             // For other targets, connect directly without auth
             ctx.output.text(format!("Connecting to {target}"))?;
-            connect_to_server(target)
+            connect_to_server(target, conn)
                 .timed("Connected and initialized", &ctx.output)
                 .await
         }
     }
 }
 
-pub async fn connect_with_auth(
+async fn connect_with_auth<C: ClientConn + Send + 'static>(
     ctx: &Ctx,
     target: &Target,
     auth_name: &str,
-) -> Result<(tenx_mcp::Client<()>, tenx_mcp::schema::InitializeResult)> {
+    conn: C,
+) -> Result<(Client<C>, InitializeResult)> {
     // Only HTTP/HTTPS targets support OAuth
     match target {
         Target::Http { .. } | Target::Https { .. } => {}
@@ -93,8 +98,7 @@ pub async fn connect_with_auth(
 
     let oauth_client = Arc::new(oauth_client);
 
-    let mut client = tenx_mcp::Client::new("mcptool", crate::ctx::VERSION)
-        .with_capabilities(tenx_mcp::schema::ClientCapabilities::default());
+    let mut client = Client::new_with_connection("mcptool", crate::ctx::VERSION, conn);
 
     let init_result = match target {
         Target::Http { host, port } => {
@@ -125,9 +129,11 @@ pub async fn connect_with_auth(
     Ok((client, init_result))
 }
 
-pub async fn connect_to_server(target: &Target) -> Result<(Client<()>, InitializeResult)> {
-    let mut client =
-        Client::new("mcptool", VERSION).with_capabilities(ClientCapabilities::default());
+pub async fn connect_to_server<C: ClientConn + Send + 'static>(
+    target: &Target,
+    conn: C,
+) -> Result<(Client<C>, InitializeResult)> {
+    let mut client = Client::new_with_connection("mcptool", VERSION, conn);
 
     let init_result = match target {
         Target::Tcp { host, port } => {

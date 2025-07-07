@@ -1,26 +1,26 @@
 use std::time::Duration;
+use tokio::{sync::mpsc, time::timeout};
 
 use libmcptool::{client, ctx::Ctx, target::Target};
-use tenx_mcp::schema::ServerNotification;
+use tenx_mcp::schema::{ClientNotification, ServerNotification};
 use tenx_mcp::{
-    Result as McpResult, Server, ServerAPI, ServerConn, ServerCtx,
+    ClientConn, ClientCtx, Result as McpResult, Server, ServerAPI, ServerConn, ServerCtx,
     schema::{LoggingLevel, ServerCapabilities},
 };
 
 // Simple test server connection for integration tests
 #[derive(Clone)]
-struct SimpleTestServerConn;
+struct SimpleTestServerConn {
+    client_notification_sender: mpsc::UnboundedSender<ClientNotification>,
+}
+
+#[derive(Clone)]
+struct SimpleTestClientConn {
+    server_notification_sender: mpsc::UnboundedSender<ServerNotification>,
+}
 
 #[async_trait::async_trait]
 impl ServerConn for SimpleTestServerConn {
-    async fn on_connect(&self, _context: &ServerCtx, _remote_addr: &str) -> McpResult<()> {
-        Ok(())
-    }
-
-    async fn on_shutdown(&self) -> McpResult<()> {
-        Ok(())
-    }
-
     async fn initialize(
         &self,
         _context: &ServerCtx,
@@ -38,25 +38,29 @@ impl ServerConn for SimpleTestServerConn {
             logger: Some("test-notification".to_string()),
             data: serde_json::json!({ "message": "test-notification-message" }),
         };
-        context.notify(notification);
+        let _ = context.notify(notification);
         Ok(())
     }
 
-    async fn list_tools(
+    async fn notification(
         &self,
         _context: &ServerCtx,
-        _cursor: Option<tenx_mcp::schema::Cursor>,
-    ) -> McpResult<tenx_mcp::schema::ListToolsResult> {
-        Ok(tenx_mcp::schema::ListToolsResult::default())
+        notification: ClientNotification,
+    ) -> McpResult<()> {
+        let _ = self.client_notification_sender.send(notification);
+        Ok(())
     }
+}
 
-    async fn call_tool(
+#[async_trait::async_trait]
+impl ClientConn for SimpleTestClientConn {
+    async fn notification(
         &self,
-        _context: &ServerCtx,
-        _name: String,
-        _arguments: Option<tenx_mcp::Arguments>,
-    ) -> McpResult<tenx_mcp::schema::CallToolResult> {
-        Ok(tenx_mcp::schema::CallToolResult::new().with_text_content("test result"))
+        _context: &ClientCtx,
+        notification: ServerNotification,
+    ) -> McpResult<()> {
+        let _ = self.server_notification_sender.send(notification);
+        Ok(())
     }
 }
 
@@ -69,9 +73,15 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn st
     // Create context
     let ctx = Ctx::new(config_path.clone(), None, false, true, false, 80)?;
 
+    // Create channels for capturing notifications
+    let (client_notification_sender, mut client_notification_receiver) = mpsc::unbounded_channel();
+    let (server_notification_sender, mut server_notification_receiver) = mpsc::unbounded_channel();
+
     // Start simple test server
     let server = Server::default()
-        .with_connection(|| SimpleTestServerConn)
+        .with_connection(move || SimpleTestServerConn {
+            client_notification_sender: client_notification_sender.clone(),
+        })
         .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
 
     let server_handle = tokio::spawn(async move {
@@ -83,7 +93,27 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn st
 
     // Connect to the testserver via TCP
     let target = Target::parse("tcp://127.0.0.1:8080")?;
-    let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+    let (mut client, _init_result) = client::get_client_with_connection(
+        &ctx,
+        &target,
+        SimpleTestClientConn {
+            server_notification_sender: server_notification_sender.clone(),
+        },
+    )
+    .await?;
+
+    // Client -> Server notifications
+    let notification = timeout(
+        Duration::from_millis(10),
+        client_notification_receiver.recv(),
+    )
+    .await;
+    assert!(
+        matches!(notification, Ok(Some(ClientNotification::Initialized))),
+        "Expected an initialized notification from the client"
+    );
+
+    // Server -> Client notifications
 
     // Test set_level command - this should work and the server should handle it
     // The client should not hang given that a notification message is sent on each call
@@ -92,47 +122,25 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn st
     client.set_level(LoggingLevel::Warning).await?;
     client.set_level(LoggingLevel::Error).await?;
 
-    // TODO - Add assertions to check that the notifications were received correctly
-
-    // Clean up
-    server_handle.abort();
-
-    Ok(())
-}
-#[tokio::test]
-#[ignore = "Requires HTTP + SSE for notifications"]
-async fn test_set_level_command_notifications_via_http() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a temporary directory for the test
-    let temp_dir = tempfile::tempdir()?;
-    let config_path = temp_dir.path().to_path_buf();
-
-    // Create context
-    let ctx = Ctx::new(config_path.clone(), None, false, true, false, 80)?;
-
-    // Start simple test server
-    let server = Server::default()
-        .with_connection(|| SimpleTestServerConn)
-        .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
-
-    let server_handle = tokio::spawn(async move {
-        server.serve_http("127.0.0.1:8080").await.unwrap();
-    });
-
-    // Wait a bit for server to start
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Connect to the testserver via HTTP
-    let target = Target::parse("http://127.0.0.1:8080")?;
-    let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
-
-    // Test set_level command - this should work and the server should handle it
-    // The client should not hang given that a notification message is sent on each call
-    client.set_level(LoggingLevel::Debug).await?;
-    client.set_level(LoggingLevel::Info).await?;
-    client.set_level(LoggingLevel::Warning).await?;
-    client.set_level(LoggingLevel::Error).await?;
-
-    // TODO - Add assertions to check that the notifications were received correctly
+    assert_eq!(
+        server_notification_receiver.len(),
+        4,
+        "Expected 4 server sent notifications for set_level commands"
+    );
+    for _ in 0..4 {
+        let notification = timeout(
+            Duration::from_millis(10),
+            server_notification_receiver.recv(),
+        )
+        .await;
+        assert!(
+            matches!(
+                notification,
+                Ok(Some(ServerNotification::LoggingMessage { .. }))
+            ),
+            "Expected a logging message notification from the server"
+        );
+    }
 
     // Clean up
     server_handle.abort();
