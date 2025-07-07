@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use tenx_mcp::auth::{OAuth2Client, OAuth2Config};
-use tenx_mcp::{
-    Client, ClientConn,
-    schema::{ClientCapabilities, InitializeResult},
-};
+use tenx_mcp::{Client, ClientConn, schema::InitializeResult};
 
 use crate::ctx::VERSION;
 use crate::{Error, Result, ctx::Ctx, target::Target, utils::TimedFuture};

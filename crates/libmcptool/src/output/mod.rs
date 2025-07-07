@@ -1,11 +1,15 @@
 #![allow(dead_code)]
 
 pub mod calltool;
+pub mod complete;
+pub mod formatter;
+pub mod getprompt;
 pub mod initresult;
 pub mod listprompts;
 pub mod listresources;
 pub mod listresourcetemplates;
 pub mod listtools;
+pub mod readresource;
 
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};

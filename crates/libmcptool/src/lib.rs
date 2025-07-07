@@ -1,3 +1,4 @@
+pub mod args;
 pub mod auth;
 pub mod calltool;
 pub mod client;

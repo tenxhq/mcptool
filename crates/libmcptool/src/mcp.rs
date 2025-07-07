@@ -3,7 +3,7 @@ use tenx_mcp::{
     schema::{InitializeResult, LoggingLevel},
 };
 
-use crate::{Result, calltool, output, utils::TimedFuture};
+use crate::{Result, args::ArgumentParser, calltool, output, utils::TimedFuture};
 
 pub async fn ping(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
     output.text("Pinging")?;
@@ -149,4 +149,106 @@ pub async fn calltool(
         .await?;
 
     output::calltool::call_tool_result(output, &result)
+}
+
+pub async fn read_resource(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    uri: &str,
+) -> Result<()> {
+    output.text(format!("Reading resource: {uri}"))?;
+    let result = client
+        .resources_read(uri)
+        .timed("    response", output)
+        .await?;
+    output::readresource::read_resource_result(output, &result)?;
+    Ok(())
+}
+
+pub async fn get_prompt(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    name: &str,
+    args: Vec<String>,
+) -> Result<()> {
+    output.text(format!("Getting prompt: {name}"))?;
+
+    // Parse arguments from key=value format
+    let arguments = ArgumentParser::parse_key_value_args(args)?;
+
+    let result = client
+        .get_prompt(name, arguments)
+        .timed("    response", output)
+        .await?;
+    output::getprompt::get_prompt_result(output, &result)?;
+    Ok(())
+}
+
+pub async fn subscribe_resource(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    uri: &str,
+) -> Result<()> {
+    output.text(format!("Subscribing to resource: {uri}"))?;
+    client
+        .resources_subscribe(uri)
+        .timed("    response", output)
+        .await?;
+    output.trace_success(format!("Successfully subscribed to resource: {uri}"))?;
+    Ok(())
+}
+
+pub async fn unsubscribe_resource(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    uri: &str,
+) -> Result<()> {
+    output.text(format!("Unsubscribing from resource: {uri}"))?;
+    client
+        .resources_unsubscribe(uri)
+        .timed("    response", output)
+        .await?;
+    output.trace_success(format!("Successfully unsubscribed from resource: {uri}"))?;
+    Ok(())
+}
+
+pub async fn complete(
+    client: &mut Client<()>,
+    output: &crate::output::Output,
+    reference: &str,
+    argument: &str,
+) -> Result<()> {
+    output.text(format!("Getting completions for: {reference}/{argument}"))?;
+
+    // Parse the reference into Reference
+    let completion_ref = if reference.starts_with("resource://") {
+        tenx_mcp::schema::Reference::Resource(tenx_mcp::schema::ResourceReference {
+            uri: reference.to_string(),
+        })
+    } else if reference.starts_with("prompt://") {
+        tenx_mcp::schema::Reference::Prompt(tenx_mcp::schema::PromptReference {
+            name: reference
+                .strip_prefix("prompt://")
+                .unwrap_or(reference)
+                .to_string(),
+            title: None,
+        })
+    } else {
+        return Err(crate::Error::Other(format!(
+            "Invalid reference format: '{}'. Expected resource:// or prompt:// prefix",
+            reference
+        )));
+    };
+
+    let argument_info = tenx_mcp::schema::ArgumentInfo {
+        name: argument.to_string(),
+        value: "".to_string(),
+    };
+
+    let result = client
+        .complete(completion_ref, argument_info)
+        .timed("    response", output)
+        .await?;
+    output::complete::complete_result(output, &result)?;
+    Ok(())
 }

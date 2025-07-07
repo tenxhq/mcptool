@@ -2194,6 +2194,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "atty",
+ "base64",
  "chrono",
  "clap",
  "dirs",

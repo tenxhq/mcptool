@@ -114,6 +114,73 @@ enum McpCommands {
         #[command(flatten)]
         mcp_args: McpArgs,
     },
+
+    /// Read a resource by URI
+    ReadResource {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// URI of the resource to read
+        uri: String,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
+
+    /// Get a prompt by name with optional arguments
+    GetPrompt {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// Name of the prompt to get
+        name: String,
+
+        /// Arguments in key=value format (can be specified multiple times)
+        #[arg(long = "arg", short = 'a')]
+        args: Vec<String>,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
+
+    /// Subscribe to resource update notifications
+    SubscribeResource {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// URI of the resource to subscribe to
+        uri: String,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
+
+    /// Unsubscribe from resource update notifications
+    UnsubscribeResource {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// URI of the resource to unsubscribe from
+        uri: String,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
+
+    /// Get completion suggestions for prompt or resource arguments
+    Complete {
+        /// The MCP server target (e.g., "localhost:3000", "tcp://host:port", "http://host:port", "auth://name")
+        target: String,
+
+        /// Reference to complete (e.g., "resource://uri" or "prompt://name")
+        reference: String,
+
+        /// Name of the argument to complete
+        argument: String,
+
+        #[command(flatten)]
+        mcp_args: McpArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -369,6 +436,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     json,
                 )
                 .await?;
+            }
+            McpCommands::ReadResource {
+                target,
+                uri,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::read_resource(&mut client, &ctx.output, &uri).await?;
+            }
+            McpCommands::GetPrompt {
+                target,
+                name,
+                args,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::get_prompt(&mut client, &ctx.output, &name, args).await?;
+            }
+            McpCommands::SubscribeResource {
+                target,
+                uri,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::subscribe_resource(&mut client, &ctx.output, &uri).await?;
+            }
+            McpCommands::UnsubscribeResource {
+                target,
+                uri,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::unsubscribe_resource(&mut client, &ctx.output, &uri).await?;
+            }
+            McpCommands::Complete {
+                target,
+                reference,
+                argument,
+                mcp_args: _,
+            } => {
+                let target = Target::parse(&target)?;
+                let (mut client, _init_result) = client::get_client(&ctx, &target).await?;
+                mcp::complete(&mut client, &ctx.output, &reference, &argument).await?;
             }
         },
 
