@@ -1,7 +1,9 @@
-use crate::Result;
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
+
 use tenx_mcp::Arguments;
+
+use crate::Result;
 
 pub fn parse_interactive_arguments(
     tool: &tenx_mcp::schema::Tool,
@@ -136,10 +138,12 @@ fn parse_interactive_arguments_with_io<R: BufRead, W: Write>(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
+    use tenx_mcp::schema::{Tool, ToolSchema};
+
     use super::*;
     use crate::output::Output;
-    use std::io::Cursor;
-    use tenx_mcp::schema::{Tool, ToolSchema};
 
     fn create_test_output() -> Output {
         Output::new(false, 80)

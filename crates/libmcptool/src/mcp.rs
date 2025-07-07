@@ -1,8 +1,9 @@
-use crate::{Result, calltool, output, utils::TimedFuture};
 use tenx_mcp::{
     Client, ServerAPI,
     schema::{InitializeResult, LoggingLevel},
 };
+
+use crate::{Result, calltool, output, utils::TimedFuture};
 
 pub async fn ping(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
     output.text("Pinging")?;

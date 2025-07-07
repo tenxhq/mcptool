@@ -1,5 +1,6 @@
-use crate::{Error, Result, ctx::Ctx};
 use rustyline::DefaultEditor;
+
+use crate::{Error, Result, ctx::Ctx};
 
 pub async fn remove_command(ctx: &Ctx, name: String) -> Result<()> {
     let storage = ctx.storage()?;

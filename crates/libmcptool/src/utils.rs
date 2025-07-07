@@ -1,7 +1,8 @@
-use async_trait::async_trait;
 use std::fmt::Display;
 use std::future::Future;
 use std::time::Instant;
+
+use async_trait::async_trait;
 
 use crate::output::Output;
 

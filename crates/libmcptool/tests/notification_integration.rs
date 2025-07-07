@@ -1,5 +1,4 @@
 use std::time::Duration;
-use tokio::{sync::mpsc, time::timeout};
 
 use libmcptool::{client, ctx::Ctx, target::Target};
 use tenx_mcp::schema::{ClientNotification, ServerNotification};
@@ -7,6 +6,7 @@ use tenx_mcp::{
     ClientConn, ClientCtx, Result as McpResult, Server, ServerAPI, ServerConn, ServerCtx,
     schema::{LoggingLevel, ServerCapabilities},
 };
+use tokio::{sync::mpsc, time::timeout};
 
 // Simple test server connection for integration tests
 #[derive(Clone)]

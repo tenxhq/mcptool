@@ -9,6 +9,7 @@ pub mod listtools;
 
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
+
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;

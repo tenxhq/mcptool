@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+
+use serde::{Deserialize, Serialize};
 use tenx_mcp::{
     Error, Result, Server, ServerConn, ServerCtx,
     schema::{

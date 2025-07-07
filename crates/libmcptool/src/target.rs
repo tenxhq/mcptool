@@ -1,5 +1,6 @@
-use crate::{Error, Result};
 use std::fmt;
+
+use crate::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Target {

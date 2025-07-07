@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use libmcptool::output::{Output, listtools};
 use serde_json::json;
-use std::collections::HashMap;
 
 #[test]
 fn test_list_tools_result_json_output() {

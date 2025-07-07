@@ -1,7 +1,9 @@
-use crate::Result;
 use std::collections::HashMap;
 use std::io::{self, BufRead};
+
 use tenx_mcp::Arguments;
+
+use crate::Result;
 
 pub fn parse_json_arguments(output: &crate::output::Output) -> Result<Option<Arguments>> {
     parse_json_arguments_from_reader(io::stdin().lock(), output)
@@ -54,9 +56,10 @@ fn parse_json_arguments_from_reader<R: BufRead>(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
     use crate::output::Output;
-    use std::io::Cursor;
 
     fn create_test_output() -> Output {
         Output::new(false, 80)
