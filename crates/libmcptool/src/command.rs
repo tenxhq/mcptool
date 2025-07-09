@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use tenx_mcp::{Client, schema::InitializeResult};
+use tenx_mcp::{Client, ClientConn, schema::InitializeResult};
 
 use crate::{Result, client, ctx::Ctx, mcp, target::Target};
 
@@ -111,9 +111,9 @@ pub struct ReplCommandWrapper {
 }
 
 // For REPL use - reuses existing client connection
-pub async fn execute_mcp_command_with_client(
+pub async fn execute_mcp_command_with_client<C: ClientConn + 'static>(
     command: McpCommand,
-    client: &mut Client<()>,
+    client: &mut Client<C>,
     init_result: &InitializeResult,
     ctx: &Ctx,
 ) -> Result<()> {

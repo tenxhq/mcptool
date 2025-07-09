@@ -1,18 +1,24 @@
 use tenx_mcp::{
-    Client, ServerAPI,
+    Client, ClientConn, ServerAPI,
     schema::{InitializeResult, LoggingLevel},
 };
 
 use crate::{Result, args::ArgumentParser, calltool, output, utils::TimedFuture};
 
-pub async fn ping(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
+pub async fn ping<C: ClientConn + 'static>(
+    client: &mut Client<C>,
+    output: &crate::output::Output,
+) -> Result<()> {
     output.text("Pinging")?;
     client.ping().timed("   response", output).await?;
     output.ping()?;
     Ok(())
 }
 
-pub async fn listtools(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
+pub async fn listtools<C: ClientConn + 'static>(
+    client: &mut Client<C>,
+    output: &crate::output::Output,
+) -> Result<()> {
     output.text("Listing tools")?;
     let tools_result = client
         .list_tools(None)
@@ -27,7 +33,10 @@ pub fn init(init_result: &InitializeResult, output: &crate::output::Output) -> R
     Ok(())
 }
 
-pub async fn listresources(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
+pub async fn listresources<C: ClientConn + 'static>(
+    client: &mut Client<C>,
+    output: &crate::output::Output,
+) -> Result<()> {
     output.text("Listing resources")?;
     let resources_result = client
         .list_resources(None)
@@ -37,7 +46,10 @@ pub async fn listresources(client: &mut Client<()>, output: &crate::output::Outp
     Ok(())
 }
 
-pub async fn listprompts(client: &mut Client<()>, output: &crate::output::Output) -> Result<()> {
+pub async fn listprompts<C: ClientConn + 'static>(
+    client: &mut Client<C>,
+    output: &crate::output::Output,
+) -> Result<()> {
     output.text("Listing prompts")?;
     let prompts_result = client
         .list_prompts(None)
@@ -47,8 +59,8 @@ pub async fn listprompts(client: &mut Client<()>, output: &crate::output::Output
     Ok(())
 }
 
-pub async fn listresourcetemplates(
-    client: &mut Client<()>,
+pub async fn listresourcetemplates<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
 ) -> Result<()> {
     output.text("Listing resource templates")?;
@@ -60,8 +72,8 @@ pub async fn listresourcetemplates(
     Ok(())
 }
 
-pub async fn set_level(
-    client: &mut Client<()>,
+pub async fn set_level<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     level: &str,
 ) -> Result<()> {
@@ -95,8 +107,8 @@ pub async fn set_level(
     Ok(())
 }
 
-pub async fn calltool(
-    client: &mut Client<()>,
+pub async fn calltool<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     tool_name: &str,
     args: Vec<String>,
@@ -151,8 +163,8 @@ pub async fn calltool(
     output::calltool::call_tool_result(output, &result)
 }
 
-pub async fn read_resource(
-    client: &mut Client<()>,
+pub async fn read_resource<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     uri: &str,
 ) -> Result<()> {
@@ -165,8 +177,8 @@ pub async fn read_resource(
     Ok(())
 }
 
-pub async fn get_prompt(
-    client: &mut Client<()>,
+pub async fn get_prompt<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     name: &str,
     args: Vec<String>,
@@ -184,8 +196,8 @@ pub async fn get_prompt(
     Ok(())
 }
 
-pub async fn subscribe_resource(
-    client: &mut Client<()>,
+pub async fn subscribe_resource<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     uri: &str,
 ) -> Result<()> {
@@ -198,8 +210,8 @@ pub async fn subscribe_resource(
     Ok(())
 }
 
-pub async fn unsubscribe_resource(
-    client: &mut Client<()>,
+pub async fn unsubscribe_resource<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     uri: &str,
 ) -> Result<()> {
@@ -212,8 +224,8 @@ pub async fn unsubscribe_resource(
     Ok(())
 }
 
-pub async fn complete(
-    client: &mut Client<()>,
+pub async fn complete<C: ClientConn + 'static>(
+    client: &mut Client<C>,
     output: &crate::output::Output,
     reference: &str,
     argument: &str,

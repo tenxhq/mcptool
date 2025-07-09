@@ -1,5 +1,7 @@
 use clap::Parser;
 use rustyline::DefaultEditor;
+use tenx_mcp::{ClientConn, ClientCtx, Result as McpResult, schema::ServerNotification};
+use tokio::sync::mpsc;
 
 use crate::{
     Result, client,
@@ -9,12 +11,36 @@ use crate::{
     target::Target,
 };
 
+#[derive(Clone)]
+struct NotificationClientConn {
+    notification_sender: mpsc::UnboundedSender<ServerNotification>,
+}
+
+#[async_trait::async_trait]
+impl ClientConn for NotificationClientConn {
+    async fn notification(
+        &self,
+        _context: &ClientCtx,
+        notification: ServerNotification,
+    ) -> McpResult<()> {
+        let _ = self.notification_sender.send(notification);
+        Ok(())
+    }
+}
+
 pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
     let target = Target::parse(&target)?;
 
     ctx.output.text(format!("Connecting to {target}..."))?;
 
-    let (mut client, init_result) = client::get_client(ctx, &target).await?;
+    // Create notification channel
+    let (notification_sender, mut notification_receiver) = mpsc::unbounded_channel();
+
+    // Create client connection with notification handling
+    let conn = NotificationClientConn {
+        notification_sender,
+    };
+    let (mut client, init_result) = client::get_client_with_connection(ctx, &target, conn).await?;
 
     ctx.output.trace_success(format!(
         "Connected to: {} v{}",
@@ -26,102 +52,173 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
     let mut rl = DefaultEditor::new()?;
 
     loop {
-        let readline = rl.readline("mcp> ");
-        match readline {
-            Ok(line) => {
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
+        tokio::select! {
+            // Handle incoming notifications
+            notification = notification_receiver.recv() => {
+                if let Some(notification) = notification {
+                    display_notification(&ctx.output, &notification)?;
                 }
+            }
+            // Handle user input (in a non-blocking way)
+            readline_result = tokio::task::spawn_blocking(|| {
+                let mut rl = DefaultEditor::new().expect("Failed to create readline editor");
+                rl.readline("mcp> ")
+            }) => {
+                match readline_result {
+                    Ok(readline) => match readline {
+                        Ok(line) => {
+                            let line = line.trim();
+                            if line.is_empty() {
+                                continue;
+                            }
 
-                rl.add_history_entry(line)?;
+                            rl.add_history_entry(line)?;
 
-                match line {
-                    "quit" | "exit" => {
-                        ctx.output.text("Goodbye!")?;
-                        break;
-                    }
-                    "help" => {
-                        ctx.output.h1("Available commands")?;
-                        ctx.output
-                            .text("  init          - Display server initialization information")?;
-                        ctx.output
-                            .text("  ping          - Send a ping request to the server")?;
-                        ctx.output
-                            .text("  listtools     - List all available tools from the server")?;
-                        ctx.output.text(
-                            "  listresources - List all available resources from the server",
-                        )?;
-                        ctx.output
-                            .text("  listprompts   - List all available prompts from the server")?;
-                        ctx.output.text(
-                            "  listresourcetemplates - List all available resource templates from the server",
-                        )?;
-                        ctx.output
-                            .text("  setlevel <level> - Set the logging level on the server")?;
-                        ctx.output.text(
-                            "  calltool <name> [--arg key=value ...] - Call a tool with arguments",
-                        )?;
-                        ctx.output
-                            .text("  readresource <uri> - Read a resource by URI")?;
-                        ctx.output
-                            .text("  getprompt <name> [--arg key=value ...] - Get a prompt by name with optional arguments")?;
-                        ctx.output
-                            .text("  subscriberesource <uri> - Subscribe to resource update notifications")?;
-                        ctx.output
-                            .text("  unsubscriberesource <uri> - Unsubscribe from resource update notifications")?;
-                        ctx.output.text(
-                            "  complete <reference> <argument> - Get completion suggestions",
-                        )?;
-                        ctx.output
-                            .text("  help          - Show this help message")?;
-                        ctx.output.text("  quit/exit     - Exit the REPL")?
-                    }
-                    "init" => {
-                        ctx.output.note("Showing initialization result from initial connection (not re-initializing)")?;
-                        initresult::init_result(&ctx.output, &init_result)?;
-                    }
-                    _ => {
-                        // Try to parse as an MCP command using clap
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        match ReplCommandWrapper::try_parse_from(parts) {
-                            Ok(wrapper) => {
-                                match execute_mcp_command_with_client(
-                                    wrapper.command,
-                                    &mut client,
-                                    &init_result,
-                                    ctx,
-                                )
-                                .await
-                                {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        ctx.output.trace_error(format!("Command failed: {e}"))?
+                            match line {
+                                "quit" | "exit" => {
+                                    ctx.output.text("Goodbye!")?;
+                                    break;
+                                }
+                                "help" => {
+                                    ctx.output.h1("Available commands")?;
+                                    ctx.output
+                                        .text("  init          - Display server initialization information")?;
+                                    ctx.output
+                                        .text("  ping          - Send a ping request to the server")?;
+                                    ctx.output
+                                        .text("  listtools     - List all available tools from the server")?;
+                                    ctx.output.text(
+                                        "  listresources - List all available resources from the server",
+                                    )?;
+                                    ctx.output
+                                        .text("  listprompts   - List all available prompts from the server")?;
+                                    ctx.output.text(
+                                        "  listresourcetemplates - List all available resource templates from the server",
+                                    )?;
+                                    ctx.output
+                                        .text("  setlevel <level> - Set the logging level on the server")?;
+                                    ctx.output.text(
+                                        "  calltool <name> [--arg key=value ...] - Call a tool with arguments",
+                                    )?;
+                                    ctx.output
+                                        .text("  readresource <uri> - Read a resource by URI")?;
+                                    ctx.output
+                                        .text("  getprompt <name> [--arg key=value ...] - Get a prompt by name with optional arguments")?;
+                                    ctx.output
+                                        .text("  subscriberesource <uri> - Subscribe to resource update notifications")?;
+                                    ctx.output
+                                        .text("  unsubscriberesource <uri> - Unsubscribe from resource update notifications")?;
+                                    ctx.output.text(
+                                        "  complete <reference> <argument> - Get completion suggestions",
+                                    )?;
+                                    ctx.output
+                                        .text("  help          - Show this help message")?;
+                                    ctx.output.text("  quit/exit     - Exit the REPL")?;
+                                }
+                                "init" => {
+                                    ctx.output.note("Showing initialization result from initial connection (not re-initializing)")?;
+                                    initresult::init_result(&ctx.output, &init_result)?;
+                                }
+                                _ => {
+                                    // Try to parse as an MCP command using clap
+                                    let parts: Vec<&str> = line.split_whitespace().collect();
+                                    match ReplCommandWrapper::try_parse_from(parts) {
+                                        Ok(wrapper) => {
+                                            match execute_mcp_command_with_client(
+                                                wrapper.command,
+                                                &mut client,
+                                                &init_result,
+                                                ctx,
+                                            )
+                                            .await
+                                            {
+                                                Ok(_) => {}
+                                                Err(e) => {
+                                                    ctx.output.trace_error(format!("Command failed: {e}"))?
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            ctx.output.trace_error(format!("Invalid command: {e}"))?;
+                                            ctx.output.text("Type 'help' for available commands.")?;
+                                        }
                                     }
                                 }
                             }
-                            Err(e) => {
-                                ctx.output.trace_error(format!("Invalid command: {e}"))?;
-                                ctx.output.text("Type 'help' for available commands.")?;
-                            }
+                        }
+                        Err(rustyline::error::ReadlineError::Interrupted) => {
+                            ctx.output.text("CTRL-C")?;
+                            break;
+                        }
+                        Err(rustyline::error::ReadlineError::Eof) => {
+                            ctx.output.text("CTRL-D")?;
+                            break;
+                        }
+                        Err(err) => {
+                            ctx.output.trace_error(format!("Error: {err:?}"))?;
+                            break;
                         }
                     }
+                    Err(e) => {
+                        ctx.output.trace_error(format!("Failed to read input: {e:?}"))?;
+                        break;
+                    }
                 }
-            }
-            Err(rustyline::error::ReadlineError::Interrupted) => {
-                ctx.output.text("CTRL-C")?;
-                break;
-            }
-            Err(rustyline::error::ReadlineError::Eof) => {
-                ctx.output.text("CTRL-D")?;
-                break;
-            }
-            Err(err) => {
-                ctx.output.trace_error(format!("Error: {err:?}"))?;
-                break;
             }
         }
     }
 
+    Ok(())
+}
+
+fn display_notification(
+    output: &crate::output::Output,
+    notification: &ServerNotification,
+) -> Result<()> {
+    match notification {
+        ServerNotification::LoggingMessage {
+            level,
+            logger,
+            data,
+        } => {
+            let logger_str = logger.as_deref().unwrap_or("server");
+            output.text(format!(
+                "[NOTIFICATION] {:?} [{}]: {}",
+                level, logger_str, data
+            ))?;
+        }
+        ServerNotification::ResourceUpdated { uri } => {
+            output.text(format!("[NOTIFICATION] Resource updated: {}", uri))?;
+        }
+        ServerNotification::ResourceListChanged => {
+            output.text("[NOTIFICATION] Resource list changed")?;
+        }
+        ServerNotification::ToolListChanged => {
+            output.text("[NOTIFICATION] Tool list changed")?;
+        }
+        ServerNotification::PromptListChanged => {
+            output.text("[NOTIFICATION] Prompt list changed")?;
+        }
+        ServerNotification::Cancelled { request_id, reason } => {
+            let reason_str = reason.as_deref().unwrap_or("no reason given");
+            output.text(format!(
+                "[NOTIFICATION] Request cancelled: {:?} ({})",
+                request_id, reason_str
+            ))?;
+        }
+        ServerNotification::Progress {
+            progress_token,
+            progress,
+            total,
+            message,
+        } => {
+            let total_str = total.map(|t| format!("/{}", t)).unwrap_or_default();
+            let message_str = message.as_deref().unwrap_or("");
+            output.text(format!(
+                "[NOTIFICATION] Progress {:?}: {}{} - {}",
+                progress_token, progress, total_str, message_str
+            ))?;
+        }
+    }
     Ok(())
 }
