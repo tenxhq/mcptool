@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     Result, client,
-    command::{ReplCommandWrapper, execute_mcp_command_with_client},
+    command::{ReplCommandWrapper, execute_mcp_command_with_client, generate_repl_help},
     ctx::Ctx,
     output::initresult,
     target::Target,
@@ -81,39 +81,7 @@ pub async fn connect_command(ctx: &Ctx, target: String) -> Result<()> {
                                 }
                                 "help" => {
                                     ctx.output.h1("Available commands")?;
-                                    ctx.output
-                                        .text("  init          - Display server initialization information")?;
-                                    ctx.output
-                                        .text("  ping          - Send a ping request to the server")?;
-                                    ctx.output
-                                        .text("  listtools     - List all available tools from the server")?;
-                                    ctx.output.text(
-                                        "  listresources - List all available resources from the server",
-                                    )?;
-                                    ctx.output
-                                        .text("  listprompts   - List all available prompts from the server")?;
-                                    ctx.output.text(
-                                        "  listresourcetemplates - List all available resource templates from the server",
-                                    )?;
-                                    ctx.output
-                                        .text("  setlevel <level> - Set the logging level on the server")?;
-                                    ctx.output.text(
-                                        "  calltool <name> [--arg key=value ...] - Call a tool with arguments",
-                                    )?;
-                                    ctx.output
-                                        .text("  readresource <uri> - Read a resource by URI")?;
-                                    ctx.output
-                                        .text("  getprompt <name> [--arg key=value ...] - Get a prompt by name with optional arguments")?;
-                                    ctx.output
-                                        .text("  subscriberesource <uri> - Subscribe to resource update notifications")?;
-                                    ctx.output
-                                        .text("  unsubscriberesource <uri> - Unsubscribe from resource update notifications")?;
-                                    ctx.output.text(
-                                        "  complete <reference> <argument> - Get completion suggestions",
-                                    )?;
-                                    ctx.output
-                                        .text("  help          - Show this help message")?;
-                                    ctx.output.text("  quit/exit     - Exit the REPL")?;
+                                    ctx.output.text(generate_repl_help())?;
                                 }
                                 "init" => {
                                     ctx.output.note("Showing initialization result from initial connection (not re-initializing)")?;

@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use tenx_mcp::{Client, ClientConn, schema::InitializeResult};
 
 use crate::{Result, client, ctx::Ctx, mcp, target::Target};
@@ -174,4 +174,53 @@ pub async fn execute_mcp_command(command: McpCommand, target: &str, ctx: &Ctx) -
     let target = Target::parse(target)?;
     let (mut client, init_result) = client::get_client(ctx, &target).await?;
     execute_mcp_command_with_client(command, &mut client, &init_result, ctx).await
+}
+
+/// Generate help text for the REPL using clap's built-in help generation
+pub fn generate_repl_help() -> String {
+    let mut help = String::new();
+    help.push_str("Available MCP commands:\n\n");
+
+    // Create a temporary app to get the help for the subcommand
+    let wrapper_cmd = ReplCommandWrapper::command();
+
+    // The ReplCommandWrapper directly contains the McpCommand subcommands
+    for cmd in wrapper_cmd.get_subcommands() {
+        let name = cmd.get_name();
+        let about = cmd
+            .get_about()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
+        help.push_str(&format!("  {:20} - {}\n", name, about));
+    }
+
+    help.push_str("\nAdditional REPL commands:\n");
+    help.push_str("  help                 - Show this help message\n");
+    help.push_str("  quit/exit            - Exit the REPL\n");
+
+    help
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_repl_help() {
+        let help = generate_repl_help();
+
+        // Check that the help contains expected sections
+        assert!(help.contains("Available MCP commands:"));
+        assert!(help.contains("Additional REPL commands:"));
+        assert!(help.contains("help"));
+        assert!(help.contains("quit/exit"));
+
+        // Check that some of the MCP commands are included
+        assert!(help.contains("ping"));
+        assert!(help.contains("listtools"));
+        assert!(help.contains("init"));
+
+        // Check that the help is not empty
+        assert!(!help.is_empty());
+    }
 }
