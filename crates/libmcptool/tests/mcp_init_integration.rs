@@ -26,7 +26,7 @@ async fn test_mcp_init_with_test_server() {
 
     // Spawn the test server in the background
     let server_handle = tokio::spawn(async move {
-        libmcptool::testserver::run_test_server(&ctx, false, false, port).await
+        libmcptool::testserver::run_test_server(&ctx, false, false, port, false).await
     });
 
     // Give the server time to start

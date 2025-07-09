@@ -153,6 +153,10 @@ enum Commands {
         /// Port to listen on (for HTTP/TCP transport)
         #[arg(short, long, default_value = "8080")]
         port: u16,
+
+        /// Run in interactive mode with REPL for server management
+        #[arg(long)]
+        interactive: bool,
     },
 
     /// Manage OAuth authentication entries
@@ -215,8 +219,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             proxy::proxy_command(target, proxy_args.log_file).await?;
         }
 
-        Commands::Testserver { stdio, tcp, port } => {
-            testserver::run_test_server(&ctx, stdio, tcp, port).await?;
+        Commands::Testserver {
+            stdio,
+            tcp,
+            port,
+            interactive,
+        } => {
+            testserver::run_test_server(&ctx, stdio, tcp, port, interactive).await?;
         }
 
         Commands::Auth { command } => match command {

@@ -16,6 +16,7 @@ pub const VERSION: &str = concat!(
 );
 
 /// Central context passed to all operatoins
+#[derive(Clone)]
 pub struct Ctx {
     /// Path to the configuration directory
     pub config_path: PathBuf,

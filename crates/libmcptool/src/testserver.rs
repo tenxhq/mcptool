@@ -1,12 +1,14 @@
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use rustyline::DefaultEditor;
 use serde::{Deserialize, Serialize};
 use tenx_mcp::{
     Error, Result, Server, ServerConn, ServerCtx,
     schema::{
         ClientCapabilities, ClientNotification, Cursor, InitializeResult, ListPromptsResult,
-        ListResourcesResult, ListToolsResult, LoggingLevel, Prompt, PromptArgument,
+        ListResourcesResult, ListToolsResult, LoggingLevel, ProgressToken, Prompt, PromptArgument,
         ReadResourceResult, Resource, ServerCapabilities, ServerNotification, Tool, ToolSchema,
     },
 };
@@ -31,21 +33,124 @@ struct UsersResponse {
     generated_at: String,
 }
 
-/// A test server connection that logs all interactions verbosely
+/// Information about a connected client
+#[derive(Clone, Debug)]
+struct ClientInfo {
+    remote_addr: String,
+    client_name: String,
+    client_version: String,
+    connected_at: std::time::Instant,
+}
+
+/// Shared state for the test server that can be accessed by both connections and the REPL
 #[derive(Clone)]
-struct TestServerConn {
+struct TestServerState {
     request_counter: Arc<AtomicU64>,
     output: Output,
     log_level: Arc<Mutex<LoggingLevel>>,
+    connected_clients: Arc<Mutex<HashMap<String, ClientInfo>>>,
+    active_contexts: Arc<Mutex<HashMap<String, ServerCtx>>>,
+}
+
+impl TestServerState {
+    fn new(output: Output, request_counter: Arc<AtomicU64>) -> Self {
+        Self {
+            request_counter,
+            output,
+            log_level: Arc::new(Mutex::new(LoggingLevel::Error)),
+            connected_clients: Arc::new(Mutex::new(HashMap::new())),
+            active_contexts: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn add_client(
+        &self,
+        context: &ServerCtx,
+        remote_addr: String,
+        client_info: tenx_mcp::schema::Implementation,
+    ) {
+        let client_id = format!(
+            "{}_{}",
+            remote_addr,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+
+        let info = ClientInfo {
+            remote_addr: remote_addr.clone(),
+            client_name: client_info.name,
+            client_version: client_info.version,
+            connected_at: std::time::Instant::now(),
+        };
+
+        self.connected_clients
+            .lock()
+            .unwrap()
+            .insert(client_id.clone(), info);
+        self.active_contexts
+            .lock()
+            .unwrap()
+            .insert(client_id, context.clone());
+
+        let _ = self
+            .output
+            .trace_success(format!("client connected from {}", remote_addr));
+    }
+
+    fn remove_client(&self, remote_addr: &str) {
+        let mut clients = self.connected_clients.lock().unwrap();
+        let mut contexts = self.active_contexts.lock().unwrap();
+
+        // Find and remove client by remote address
+        let client_id_to_remove = clients
+            .iter()
+            .find(|(_, info)| info.remote_addr == remote_addr)
+            .map(|(id, _)| id.clone());
+
+        if let Some(client_id) = client_id_to_remove {
+            clients.remove(&client_id);
+            contexts.remove(&client_id);
+            let _ = self
+                .output
+                .trace_warn(format!("client disconnected from {}", remote_addr));
+        }
+    }
+
+    async fn broadcast_notification(&self, notification: ServerNotification) -> Result<()> {
+        let contexts = self.active_contexts.lock().unwrap();
+
+        for context in contexts.values() {
+            context.notify(notification.clone())?;
+        }
+
+        Ok(())
+    }
+
+    fn get_client_count(&self) -> usize {
+        self.connected_clients.lock().unwrap().len()
+    }
+
+    fn get_client_list(&self) -> Vec<ClientInfo> {
+        self.connected_clients
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect()
+    }
+}
+
+/// A test server connection that logs all interactions verbosely
+#[derive(Clone)]
+struct TestServerConn {
+    state: TestServerState,
 }
 
 impl TestServerConn {
-    fn new(output: Output) -> Self {
-        Self {
-            request_counter: Arc::new(AtomicU64::new(0)),
-            output,
-            log_level: Arc::new(Mutex::new(LoggingLevel::Error)),
-        }
+    fn new(state: TestServerState) -> Self {
+        Self { state }
     }
 
     async fn send_notification(
@@ -53,8 +158,8 @@ impl TestServerConn {
         context: &ServerCtx,
         notification: ServerNotification,
     ) -> Result<()> {
-        let _ = self.output.h1("sending notification");
-        let _ = self.output.text(format!(
+        let _ = self.state.output.h1("sending notification");
+        let _ = self.state.output.text(format!(
             "content: {}",
             serde_json::to_string_pretty(&notification).unwrap()
         ));
@@ -68,7 +173,7 @@ impl TestServerConn {
         level: LoggingLevel,
         message: String,
     ) -> Result<()> {
-        let current_level = *self.log_level.lock().unwrap();
+        let current_level = *self.state.log_level.lock().unwrap();
 
         // Check if message should be sent based on current log level
         if self.should_log_message(&level, &current_level) {
@@ -95,9 +200,11 @@ impl TestServerConn {
 #[async_trait::async_trait]
 impl ServerConn for TestServerConn {
     async fn on_connect(&self, _context: &ServerCtx, remote_addr: &str) -> Result<()> {
+        // Note: We'll add the client in the initialize method when we have more info
         let _ = self
+            .state
             .output
-            .trace_success(format!("client connected from {remote_addr}"));
+            .trace_success(format!("client connecting from {remote_addr}"));
         Ok(())
     }
 
@@ -107,21 +214,27 @@ impl ServerConn for TestServerConn {
 
     async fn initialize(
         &self,
-        _context: &ServerCtx,
+        context: &ServerCtx,
         protocol_version: String,
         capabilities: ClientCapabilities,
         client_info: tenx_mcp::schema::Implementation,
     ) -> Result<InitializeResult> {
-        let _ = self.output.h1("initialize");
+        self.state.request_counter.fetch_add(1, Ordering::Relaxed);
+        let _ = self.state.output.h1("initialize");
         let params = serde_json::json!({
             "protocol_version": protocol_version,
             "capabilities": capabilities,
             "client_info": client_info,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
+
+        // Add client to shared state with context info
+        // Note: We don't have direct access to remote_addr from context, so we'll use a placeholder
+        self.state
+            .add_client(context, "client_connection".to_string(), client_info);
 
         let result = InitializeResult::new("mcptool-testserver")
             .with_version(env!("CARGO_PKG_VERSION"))
@@ -130,7 +243,7 @@ impl ServerConn for TestServerConn {
             .with_resources(true, true)
             .with_instructions("mcptool test server");
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -139,9 +252,9 @@ impl ServerConn for TestServerConn {
     }
 
     async fn pong(&self, _context: &ServerCtx) -> Result<()> {
-        let _ = self.output.h1("pong");
-        let _ = self.output.text("parameters: {}");
-        let _ = self.output.text("result: pong");
+        let _ = self.state.output.h1("pong");
+        let _ = self.state.output.text("parameters: {}");
+        let _ = self.state.output.text("result: pong");
         Ok(())
     }
 
@@ -150,11 +263,11 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<ListToolsResult> {
-        let _ = self.output.h1("list_tools");
+        let _ = self.state.output.h1("list_tools");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -175,7 +288,7 @@ impl ServerConn for TestServerConn {
 
         let result = ListToolsResult::default().with_tool(echo_tool);
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -189,12 +302,12 @@ impl ServerConn for TestServerConn {
         name: String,
         arguments: Option<tenx_mcp::Arguments>,
     ) -> Result<tenx_mcp::schema::CallToolResult> {
-        let _ = self.output.h1("call_tool");
+        let _ = self.state.output.h1("call_tool");
         let params = serde_json::json!({
             "name": name,
             "arguments": arguments,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -225,7 +338,7 @@ impl ServerConn for TestServerConn {
         let result =
             tenx_mcp::schema::CallToolResult::new().with_text_content(format!("Echo: {message}"));
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -246,8 +359,8 @@ impl ServerConn for TestServerConn {
         context: &ServerCtx,
         notification: ClientNotification,
     ) -> Result<()> {
-        let _ = self.output.h1("notification");
-        let _ = self.output.text(format!(
+        let _ = self.state.output.h1("notification");
+        let _ = self.state.output.text(format!(
             "content: {}",
             serde_json::to_string_pretty(&notification).unwrap()
         ));
@@ -264,14 +377,14 @@ impl ServerConn for TestServerConn {
     }
 
     async fn set_level(&self, context: &ServerCtx, level: LoggingLevel) -> Result<()> {
-        let _ = self.output.h1("set_level");
-        let _ = self.output.text(format!(
+        let _ = self.state.output.h1("set_level");
+        let _ = self.state.output.text(format!(
             "level: {}",
             serde_json::to_string_pretty(&level).unwrap()
         ));
 
         // Update the log level
-        *self.log_level.lock().unwrap() = level;
+        *self.state.log_level.lock().unwrap() = level;
 
         // Acknowledge the level change
         self.send_log_message(
@@ -318,11 +431,11 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<ListPromptsResult> {
-        let _ = self.output.h1("list_prompts");
+        let _ = self.state.output.h1("list_prompts");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -373,7 +486,7 @@ impl ServerConn for TestServerConn {
             .with_prompt(greeting_prompt)
             .with_prompt(code_review_prompt);
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -387,12 +500,12 @@ impl ServerConn for TestServerConn {
         name: String,
         arguments: Option<tenx_mcp::Arguments>,
     ) -> Result<tenx_mcp::schema::GetPromptResult> {
-        let _ = self.output.h1("get_prompt");
+        let _ = self.state.output.h1("get_prompt");
         let params = serde_json::json!({
             "name": name,
             "arguments": arguments,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -438,7 +551,7 @@ impl ServerConn for TestServerConn {
             _ => return Err(Error::MethodNotFound(format!("Unknown prompt: {name}"))),
         };
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -451,11 +564,11 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<ListResourcesResult> {
-        let _ = self.output.h1("list_resources");
+        let _ = self.state.output.h1("list_resources");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -478,7 +591,7 @@ impl ServerConn for TestServerConn {
             .with_resource(sample_data_resource)
             .with_resource(metrics_resource);
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -487,11 +600,11 @@ impl ServerConn for TestServerConn {
     }
 
     async fn read_resource(&self, context: &ServerCtx, uri: String) -> Result<ReadResourceResult> {
-        let _ = self.output.h1("read_resource");
+        let _ = self.state.output.h1("read_resource");
         let params = serde_json::json!({
             "uri": uri,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -551,14 +664,14 @@ impl ServerConn for TestServerConn {
             "metrics://testserver/stats" => {
                 let metrics = format!(
                     "Server Metrics\n==============\n\nTotal requests processed: {}\nUptime: N/A\nMemory usage: N/A\nActive connections: 1",
-                    self.request_counter.load(Ordering::Relaxed)
+                    self.state.request_counter.load(Ordering::Relaxed)
                 );
                 ReadResourceResult::new().with_text(uri, metrics)
             }
             _ => return Err(Error::ResourceNotFound { uri }),
         };
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -571,11 +684,11 @@ impl ServerConn for TestServerConn {
         _context: &ServerCtx,
         cursor: Option<Cursor>,
     ) -> Result<tenx_mcp::schema::ListResourceTemplatesResult> {
-        let _ = self.output.h1("list_resource_templates");
+        let _ = self.state.output.h1("list_resource_templates");
         let params = serde_json::json!({
             "cursor": cursor,
         });
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "parameters: {}",
             serde_json::to_string_pretty(&params).unwrap()
         ));
@@ -627,7 +740,7 @@ impl ServerConn for TestServerConn {
             .with_resource_template(config_template)
             .with_resource_template(metrics_template);
 
-        let _ = self.output.text(format!(
+        let _ = self.state.output.text(format!(
             "result: {}",
             serde_json::to_string_pretty(&result).unwrap()
         ));
@@ -636,12 +749,392 @@ impl ServerConn for TestServerConn {
     }
 }
 
-pub async fn run_test_server(ctx: &Ctx, stdio: bool, tcp: bool, port: u16) -> Result<()> {
+/// Run the interactive REPL for server management
+async fn run_interactive_repl(
+    ctx: &Ctx,
+    server_address: String,
+    server_state: TestServerState,
+) -> crate::Result<()> {
+    // Run the entire REPL in a blocking task to avoid blocking the tokio executor
+    // TODO Use mpsc to pass stuff around
+    let ctx_clone = ctx.clone();
+    tokio::task::spawn_blocking(move || {
+        run_interactive_repl_blocking(&ctx_clone, server_address, server_state)
+    })
+    .await
+    .map_err(|e| crate::Error::Internal(e.to_string()))??;
+
+    Ok(())
+}
+
+/// Blocking version of the interactive REPL
+fn run_interactive_repl_blocking(
+    ctx: &Ctx,
+    server_address: String,
+    server_state: TestServerState,
+) -> crate::Result<()> {
+    let mut rl = DefaultEditor::new()?;
+    let rt_handle = tokio::runtime::Handle::current();
+
+    ctx.output.text("Interactive testserver console started")?;
+    ctx.output
+        .text("Type 'help' for available commands, 'quit' to exit")?;
+    ctx.output
+        .text("Use server-side commands to manage connected clients")?;
+    ctx.output.text("")?;
+
+    loop {
+        let client_count = server_state.get_client_count();
+        let prompt = format!("testserver[{}]> ", client_count);
+
+        let readline = rl.readline(&prompt);
+        match readline {
+            Ok(line) => {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+
+                rl.add_history_entry(line)?;
+
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.is_empty() {
+                    continue;
+                }
+
+                match parts[0] {
+                    "quit" | "exit" => {
+                        ctx.output.text("Goodbye!")?;
+                        break;
+                    }
+                    "help" => {
+                        ctx.output.h1("Available commands")?;
+                        ctx.output.text("Server Management:")?;
+                        ctx.output.text("  status                     - Show server status and connected clients")?;
+                        ctx.output
+                            .text("  clients                    - List all connected clients")?;
+                        ctx.output.text("")?;
+                        ctx.output.text("Notifications:")?;
+                        ctx.output.text(
+                            "  notify <level> <message>   - Send log notification to all clients",
+                        )?;
+                        ctx.output.text(
+                            "                               Levels: debug, info, warning, error",
+                        )?;
+                        ctx.output.text(
+                            "  progress <id> <progress>   - Send progress notification (0.0-1.0)",
+                        )?;
+                        ctx.output.text(
+                            "  resource <uri>             - Send resource update notification",
+                        )?;
+                        ctx.output.text("")?;
+                        ctx.output.text("Server Configuration:")?;
+                        ctx.output
+                            .text("  setlevel <level>           - Set global logging level")?;
+                        ctx.output.text(
+                            "                               Levels: debug, info, warning, error",
+                        )?;
+                        ctx.output.text("")?;
+                        ctx.output.text("General:")?;
+                        ctx.output
+                            .text("  help                       - Show this help message")?;
+                        ctx.output
+                            .text("  quit/exit                  - Exit the interactive console")?;
+                    }
+                    "status" => {
+                        ctx.output.h1("Server Status")?;
+                        ctx.output
+                            .text(format!("Server Address: {}", server_address))?;
+                        ctx.output.text(format!(
+                            "Total Requests: {}",
+                            server_state.request_counter.load(Ordering::Relaxed)
+                        ))?;
+                        ctx.output
+                            .text(format!("Connected Clients: {}", client_count))?;
+                        let current_level = *server_state.log_level.lock().unwrap();
+                        ctx.output
+                            .text(format!("Current Log Level: {:?}", current_level))?;
+                    }
+                    "clients" => {
+                        ctx.output.h1("Connected Clients")?;
+                        let clients = server_state.get_client_list();
+                        if clients.is_empty() {
+                            ctx.output.text("No clients connected")?;
+                        } else {
+                            for (i, client) in clients.iter().enumerate() {
+                                ctx.output.text(format!(
+                                    "{}. {} v{} from {} (connected {}s ago)",
+                                    i + 1,
+                                    client.client_name,
+                                    client.client_version,
+                                    client.remote_addr,
+                                    client.connected_at.elapsed().as_secs()
+                                ))?;
+                            }
+                        }
+                    }
+                    "notify" => {
+                        if parts.len() < 3 {
+                            ctx.output.trace_error("Usage: notify <level> <message>")?;
+                            continue;
+                        }
+
+                        let level = match parts[1] {
+                            "debug" => LoggingLevel::Debug,
+                            "info" => LoggingLevel::Info,
+                            "warning" => LoggingLevel::Warning,
+                            "error" => LoggingLevel::Error,
+                            _ => {
+                                ctx.output.trace_error(
+                                    "Invalid level. Use: debug, info, warning, error",
+                                )?;
+                                continue;
+                            }
+                        };
+
+                        let message = parts[2..].join(" ");
+                        let notification = ServerNotification::LoggingMessage {
+                            level,
+                            logger: Some("testserver-repl".to_string()),
+                            data: serde_json::json!({ "message": message }),
+                        };
+
+                        match rt_handle.block_on(server_state.broadcast_notification(notification))
+                        {
+                            Ok(_) => ctx
+                                .output
+                                .trace_success("Notification sent to all clients")?,
+                            Err(e) => ctx
+                                .output
+                                .trace_error(format!("Failed to send notification: {}", e))?,
+                        }
+                    }
+                    "progress" => {
+                        if parts.len() < 3 {
+                            ctx.output
+                                .trace_error("Usage: progress <operation_id> <progress>")?;
+                            continue;
+                        }
+
+                        let progress: f64 = match parts[2].parse() {
+                            Ok(p) if (0.0..=1.0).contains(&p) => p,
+                            _ => {
+                                ctx.output
+                                    .trace_error("Progress must be a number between 0.0 and 1.0")?;
+                                continue;
+                            }
+                        };
+
+                        let notification = ServerNotification::Progress {
+                            progress_token: ProgressToken::String(parts[1].to_string()),
+                            progress,
+                            total: Some(1.0),
+                            message: Some(format!(
+                                "Operation {} progress: {:.1}%",
+                                parts[1],
+                                progress * 100.0
+                            )),
+                        };
+
+                        match rt_handle.block_on(server_state.broadcast_notification(notification))
+                        {
+                            Ok(_) => ctx
+                                .output
+                                .trace_success("Progress notification sent to all clients")?,
+                            Err(e) => ctx
+                                .output
+                                .trace_error(format!("Failed to send progress: {}", e))?,
+                        }
+                    }
+                    "resource" => {
+                        if parts.len() < 2 {
+                            ctx.output.trace_error("Usage: resource <uri>")?;
+                            continue;
+                        }
+
+                        let notification = ServerNotification::ResourceUpdated {
+                            uri: parts[1].to_string(),
+                        };
+
+                        match rt_handle.block_on(server_state.broadcast_notification(notification))
+                        {
+                            Ok(_) => ctx.output.trace_success(
+                                "Resource update notification sent to all clients",
+                            )?,
+                            Err(e) => ctx
+                                .output
+                                .trace_error(format!("Failed to send resource update: {}", e))?,
+                        }
+                    }
+                    "setlevel" => {
+                        if parts.len() < 2 {
+                            ctx.output.trace_error("Usage: setlevel <level>")?;
+                            continue;
+                        }
+
+                        let level = match parts[1] {
+                            "debug" => LoggingLevel::Debug,
+                            "info" => LoggingLevel::Info,
+                            "warning" => LoggingLevel::Warning,
+                            "error" => LoggingLevel::Error,
+                            _ => {
+                                ctx.output.trace_error(
+                                    "Invalid level. Use: debug, info, warning, error",
+                                )?;
+                                continue;
+                            }
+                        };
+
+                        *server_state.log_level.lock().unwrap() = level;
+                        ctx.output
+                            .trace_success(format!("Log level set to: {:?}", level))?;
+
+                        // Notify all clients about the level change
+                        let notification = ServerNotification::LoggingMessage {
+                            level: LoggingLevel::Info,
+                            logger: Some("testserver-repl".to_string()),
+                            data: serde_json::json!({ "message": format!("Server log level changed to: {:?}", level) }),
+                        };
+
+                        let _ =
+                            rt_handle.block_on(server_state.broadcast_notification(notification));
+                    }
+                    _ => {
+                        ctx.output
+                            .trace_error(format!("Unknown command: {}", parts[0]))?;
+                        ctx.output.text("Type 'help' for available commands.")?;
+                    }
+                }
+            }
+            Err(rustyline::error::ReadlineError::Interrupted) => {
+                ctx.output.text("CTRL-C")?;
+                break;
+            }
+            Err(rustyline::error::ReadlineError::Eof) => {
+                ctx.output.text("CTRL-D")?;
+                break;
+            }
+            Err(err) => {
+                ctx.output.trace_error(format!("Error: {:?}", err))?;
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Create a configured server instance with test connection handler
+fn create_test_server(
+    output: Output,
+    request_counter: Arc<AtomicU64>,
+) -> (
+    Server<impl Fn() -> Box<dyn ServerConn> + Clone + Send + Sync + 'static>,
+    TestServerState,
+) {
+    let state = TestServerState::new(output, request_counter);
+    let state_for_conn = state.clone();
+
+    let server = Server::default()
+        .with_connection(move || TestServerConn::new(state_for_conn.clone()))
+        .with_capabilities(
+            ServerCapabilities::default()
+                .with_tools(Some(true))
+                .with_prompts(None)
+                .with_resources(None, None),
+        );
+
+    (server, state)
+}
+
+/// Handle interactive mode for both TCP and HTTP servers
+async fn handle_interactive_mode<F, Fut>(
+    ctx: &Ctx,
+    server_address: String,
+    server_state: TestServerState,
+    output: &Output,
+    server_starter: F,
+) -> Result<()>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    let _ = output.trace_success(format!("Listening on: {}", server_address));
+    let _ = output.text("Starting interactive mode...");
+
+    let ctx_clone = ctx.clone();
+    let server_state_clone = server_state.clone();
+
+    // Start server and REPL concurrently
+    tokio::select! {
+        result = server_starter() => {
+            let _ = output.text("Closing tcp server...");
+            result?;
+        }
+        // TODO Fix this
+        // _ = tokio::signal::ctrl_c() => {
+        //     let _ = output.trace_warn("Shutting down server...");
+        //     result.stop().await?;
+        // }
+        resultb = run_interactive_repl(&ctx_clone, server_address, server_state_clone) => {
+            resultb.map_err(|e| Error::InternalError(e.to_string()))?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle non-interactive mode for TCP server
+async fn handle_tcp_non_interactive(
+    server: Server<impl Fn() -> Box<dyn ServerConn> + Clone + Send + Sync + 'static>,
+    addr: &str,
+    output: &Output,
+) -> Result<()> {
+    let _ = output.text("Transport: TCP");
+    let _ = output.trace_success(format!("Listening on: tcp://{}", addr));
+    let _ = output.text("Press Ctrl+C to stop the server");
+    server.serve_tcp(addr).await
+}
+
+/// Handle non-interactive mode for HTTP server
+async fn handle_http_non_interactive(
+    server: Server<impl Fn() -> Box<dyn ServerConn> + Clone + Send + Sync + 'static>,
+    addr: &str,
+    output: &Output,
+) -> Result<()> {
+    let _ = output.text("Transport: HTTP");
+    let _ = output.trace_success(format!("Listening on: http://{}", addr));
+    let _ = output.text("Press Ctrl+C to stop the server");
+
+    let handle = server.serve_http(addr).await?;
+
+    // Wait for Ctrl+C
+    tokio::signal::ctrl_c().await.unwrap();
+    let _ = output.trace_warn("Shutting down server...");
+    handle.stop().await?;
+
+    Ok(())
+}
+
+pub async fn run_test_server(
+    ctx: &Ctx,
+    stdio: bool,
+    tcp: bool,
+    port: u16,
+    interactive: bool,
+) -> Result<()> {
     // Validate that only one transport is specified
     let transport_count = [stdio, tcp].iter().filter(|&&x| x).count();
     if transport_count > 1 {
         return Err(Error::InvalidConfiguration(
             "Only one transport can be specified: --stdio, --tcp, or HTTP (default)".to_string(),
+        ));
+    }
+
+    // Interactive mode is incompatible with stdio transport
+    if interactive && stdio {
+        return Err(Error::InvalidConfiguration(
+            "Interactive mode is not compatible with stdio transport".to_string(),
         ));
     }
 
@@ -659,37 +1152,26 @@ pub async fn run_test_server(ctx: &Ctx, stdio: bool, tcp: bool, port: u16) -> Re
         tenx_mcp::schema::LATEST_PROTOCOL_VERSION
     ));
 
-    let output_for_conn = output.clone();
-    let server = Server::default()
-        .with_connection(move || TestServerConn::new(output_for_conn.clone()))
-        .with_capabilities(
-            ServerCapabilities::default()
-                .with_tools(Some(true))
-                .with_prompts(None)
-                .with_resources(None, None),
-        );
+    // Create shared request counter for interactive mode
+    let request_counter = Arc::new(AtomicU64::new(0));
+    let (server, server_state) = create_test_server(output.clone(), request_counter.clone());
 
     if stdio {
         server.serve_stdio().await?;
-    } else if tcp {
-        let addr = format!("127.0.0.1:{port}");
-        let _ = output.text("Transport: TCP");
-        let _ = output.trace_success(format!("Listening on: tcp://{addr}"));
-        let _ = output.text("Press Ctrl+C to stop the server");
-
-        server.serve_tcp(&addr).await?;
     } else {
         let addr = format!("127.0.0.1:{port}");
-        let _ = output.text("Transport: HTTP");
-        let _ = output.trace_success(format!("Listening on: http://{addr}"));
-        let _ = output.text("Press Ctrl+C to stop the server");
-
-        let handle = server.serve_http(&addr).await?;
-
-        // Wait for Ctrl+C
-        tokio::signal::ctrl_c().await.unwrap();
-        let _ = output.trace_warn("Shutting down server...");
-        handle.stop().await?;
+        if interactive {
+            handle_interactive_mode(
+                ctx,
+                format!("tcp://{addr}"),
+                server_state,
+                &output.clone(),
+                || async move { server.serve_tcp(&addr).await },
+            )
+            .await?;
+        } else {
+            handle_tcp_non_interactive(server, &addr, &output).await?;
+        }
     }
 
     Ok(())
