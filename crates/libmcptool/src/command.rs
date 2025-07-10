@@ -31,7 +31,7 @@ pub enum McpCommand {
     Listresourcetemplates,
 
     /// Set the logging level on the MCP server
-    SetLevel {
+    Setlevel {
         /// The logging level to set (debug, info, notice, warning, error, critical, alert, emergency)
         level: String,
     },
@@ -55,13 +55,13 @@ pub enum McpCommand {
     },
 
     /// Read a resource by URI
-    ReadResource {
+    Readresource {
         /// URI of the resource to read
         uri: String,
     },
 
     /// Get a prompt by name with optional arguments
-    GetPrompt {
+    Getprompt {
         /// Name of the prompt to get
         name: String,
 
@@ -71,13 +71,13 @@ pub enum McpCommand {
     },
 
     /// Subscribe to resource update notifications
-    SubscribeResource {
+    Subscriberesource {
         /// URI of the resource to subscribe to
         uri: String,
     },
 
     /// Unsubscribe from resource update notifications
-    UnsubscribeResource {
+    Unsubscriberesource {
         /// URI of the resource to unsubscribe from
         uri: String,
     },
@@ -136,7 +136,7 @@ pub async fn execute_mcp_command_with_client<C: ClientConn + 'static>(
         McpCommand::Listresourcetemplates => {
             mcp::listresourcetemplates(client, &ctx.output).await?;
         }
-        McpCommand::SetLevel { level } => {
+        McpCommand::Setlevel { level } => {
             mcp::set_level(client, &ctx.output, &level).await?;
         }
         McpCommand::Calltool {
@@ -147,16 +147,16 @@ pub async fn execute_mcp_command_with_client<C: ClientConn + 'static>(
         } => {
             mcp::calltool(client, &ctx.output, &tool_name, args, interactive, json).await?;
         }
-        McpCommand::ReadResource { uri } => {
+        McpCommand::Readresource { uri } => {
             mcp::read_resource(client, &ctx.output, &uri).await?;
         }
-        McpCommand::GetPrompt { name, args } => {
+        McpCommand::Getprompt { name, args } => {
             mcp::get_prompt(client, &ctx.output, &name, args).await?;
         }
-        McpCommand::SubscribeResource { uri } => {
+        McpCommand::Subscriberesource { uri } => {
             mcp::subscribe_resource(client, &ctx.output, &uri).await?;
         }
-        McpCommand::UnsubscribeResource { uri } => {
+        McpCommand::Unsubscriberesource { uri } => {
             mcp::unsubscribe_resource(client, &ctx.output, &uri).await?;
         }
         McpCommand::Complete {
