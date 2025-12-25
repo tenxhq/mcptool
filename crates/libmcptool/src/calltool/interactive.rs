@@ -21,16 +21,13 @@ fn parse_interactive_arguments_with_io<R: BufRead, W: Write>(
 ) -> Result<Option<Arguments>> {
     output.text("Interactive mode: Enter tool parameters")?;
 
-    let properties = tool.input_schema.properties.as_ref();
-    let empty_vec = vec![];
-    let required = tool.input_schema.required.as_ref().unwrap_or(&empty_vec);
+    let properties = tool.input_schema.properties();
+    let required = tool.input_schema.required().unwrap_or_default();
 
-    if properties.is_none() {
+    let Some(properties) = properties else {
         output.text("No parameters required for this tool")?;
         return Ok(None);
-    }
-
-    let properties = properties.unwrap();
+    };
     let mut arg_map = HashMap::new();
 
     // Sort parameters by name for deterministic order in tests
@@ -38,7 +35,7 @@ fn parse_interactive_arguments_with_io<R: BufRead, W: Write>(
     sorted_params.sort_by_key(|(name, _)| *name);
 
     for (param_name, param_schema) in sorted_params {
-        let is_required = required.contains(param_name);
+        let is_required = required.contains(&param_name.as_str());
         let param_type = param_schema
             .get("type")
             .and_then(|t| t.as_str())

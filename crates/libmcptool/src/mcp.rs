@@ -169,9 +169,9 @@ pub async fn calltool<C: ClientHandler + 'static>(
         calltool::cmdline::parse_command_line_arguments(args, output)?
     };
 
-    // Call the tool
+    // Call the tool - call_tool now accepts any Serialize type directly
     let result = client
-        .call_tool(tool_name, arguments, None)
+        .call_tool(tool_name, arguments)
         .timed("   response", output)
         .await?;
 
