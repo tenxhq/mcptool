@@ -1013,8 +1013,7 @@ fn create_test_server(
     let state = TestServerState::new(output, request_counter);
     let state_for_conn = state.clone();
 
-    let server = Server::default()
-        .with_handler(move || TestServerConn::new(state_for_conn.clone()))
+    let server = Server::new(move || TestServerConn::new(state_for_conn.clone()))
         .with_capabilities(
             ServerCapabilities::default()
                 .with_tools(Some(true))

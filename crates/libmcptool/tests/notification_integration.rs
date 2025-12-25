@@ -93,11 +93,10 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     drop(listener); // Release the port so server can bind to it
 
     // Start simple test server
-    let server = Server::default()
-        .with_handler(move || SimpleTestServerConn {
-            client_notification_sender: client_notification_sender.clone(),
-        })
-        .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
+    let server = Server::new(move || SimpleTestServerConn {
+        client_notification_sender: client_notification_sender.clone(),
+    })
+    .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
 
     let addr = format!("127.0.0.1:{}", port);
     let server_handle = tokio::spawn(async move {
