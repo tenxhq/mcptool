@@ -1,7 +1,7 @@
 //! MCP client command implementations.
 
 use tmcp::{
-    Client, ClientHandler, ServerAPI,
+    Client, ClientHandler,
     schema::{
         ArgumentInfo, InitializeResult, LoggingLevel, PromptReference, Reference,
         ResourceTemplateReference,

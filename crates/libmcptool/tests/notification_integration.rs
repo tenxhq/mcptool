@@ -5,7 +5,7 @@ use std::{error::Error, time::Duration};
 
 use libmcptool::{client, ctx::Ctx, target::Target};
 use tmcp::{
-    ClientCtx, ClientHandler, Result as McpResult, Server, ServerAPI, ServerCtx, ServerHandler,
+    ClientCtx, ClientHandler, Result as McpResult, Server, ServerCtx, ServerHandler,
     schema::{
         ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel,
         ServerCapabilities, ServerNotification,
