@@ -59,13 +59,8 @@ async fn test_mcp_init_with_test_server() {
 
     let (_ctx, _temp_dir) = create_test_ctx();
 
-    // Create and start the server directly
-    let server = Server::new(|| SimpleTestConn).with_capabilities(
-        ServerCapabilities::default()
-            .with_tools(Some(true))
-            .with_prompts(None)
-            .with_resources(None, None),
-    );
+    // Create and start the server - capabilities come from handler's initialize response
+    let server = Server::new(|| SimpleTestConn);
 
     let addr = format!("127.0.0.1:{port}");
     let server_handle = tokio::spawn(async move { server.serve_tcp(&addr).await });

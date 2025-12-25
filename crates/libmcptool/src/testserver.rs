@@ -17,7 +17,7 @@ use tmcp::{
         GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
         ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
-        Resource, ResourceTemplate, Role, ServerCapabilities, ServerNotification, TaskMetadata,
+        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata,
         Tool, ToolSchema,
     },
 };
@@ -1013,13 +1013,9 @@ fn create_test_server(
     let state = TestServerState::new(output, request_counter);
     let state_for_conn = state.clone();
 
-    let server = Server::new(move || TestServerConn::new(state_for_conn.clone()))
-        .with_capabilities(
-            ServerCapabilities::default()
-                .with_tools(Some(true))
-                .with_prompts(None)
-                .with_resources(None, None),
-        );
+    // Capabilities are returned by TestServerConn::initialize, making the handler the single
+    // source of truth for what the server advertises.
+    let server = Server::new(move || TestServerConn::new(state_for_conn.clone()));
 
     (server, state)
 }

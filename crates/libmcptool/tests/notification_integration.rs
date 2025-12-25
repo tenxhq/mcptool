@@ -7,8 +7,7 @@ use libmcptool::{client, ctx::Ctx, target::Target};
 use tmcp::{
     ClientCtx, ClientHandler, Result as McpResult, Server, ServerCtx, ServerHandler,
     schema::{
-        ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel,
-        ServerCapabilities, ServerNotification,
+        ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel, ServerNotification,
     },
 };
 use tokio::{
@@ -37,7 +36,9 @@ impl ServerHandler for SimpleTestServerConn {
         _capabilities: ClientCapabilities,
         _client_info: Implementation,
     ) -> McpResult<InitializeResult> {
-        Ok(InitializeResult::new("test-server").with_version("1.0.0"))
+        Ok(InitializeResult::new("test-server")
+            .with_version("1.0.0")
+            .with_tools(true))
     }
 
     async fn set_level(&self, context: &ServerCtx, level: LoggingLevel) -> McpResult<()> {
@@ -92,11 +93,10 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     let port = listener.local_addr()?.port();
     drop(listener); // Release the port so server can bind to it
 
-    // Start simple test server
+    // Start simple test server - capabilities come from handler's initialize response
     let server = Server::new(move || SimpleTestServerConn {
         client_notification_sender: client_notification_sender.clone(),
-    })
-    .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
+    });
 
     let addr = format!("127.0.0.1:{}", port);
     let server_handle = tokio::spawn(async move {
