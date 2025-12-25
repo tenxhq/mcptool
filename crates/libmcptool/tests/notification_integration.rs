@@ -46,6 +46,7 @@ impl ServerHandler for SimpleTestServerConn {
             level,
             logger: Some("test-notification".to_string()),
             data: serde_json::json!({ "message": "test-notification-message" }),
+            _meta: None,
         };
         _ = context.notify(notification);
         Ok(())
@@ -124,7 +125,10 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     )
     .await;
     assert!(
-        matches!(notification, Ok(Some(ClientNotification::Initialized))),
+        matches!(
+            notification,
+            Ok(Some(ClientNotification::Initialized { .. }))
+        ),
         "Expected an initialized notification from the client"
     );
 

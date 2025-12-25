@@ -20,6 +20,7 @@ fn test_list_tools_result_json_output() {
     );
 
     let input_schema = ToolSchema {
+        schema: None,
         schema_type: "object".to_string(),
         properties: Some(properties),
         required: Some(vec!["param1".to_string()]),

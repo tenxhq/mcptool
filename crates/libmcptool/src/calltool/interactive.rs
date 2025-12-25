@@ -155,19 +155,15 @@ mod tests {
         required: Option<Vec<String>>,
     ) -> Tool {
         let properties_map: HashMap<String, serde_json::Value> = properties.into_iter().collect();
-        Tool {
-            name: "test_tool".to_string(),
-            title: Some("Test tool".to_string()),
-            description: Some("Test tool".to_string()),
-            input_schema: ToolSchema {
-                schema_type: "object".to_string(),
-                properties: Some(properties_map),
-                required,
-            },
-            output_schema: None,
-            annotations: None,
-            _meta: None,
-        }
+        let input_schema = ToolSchema {
+            schema: None,
+            schema_type: "object".to_string(),
+            properties: Some(properties_map),
+            required,
+        };
+        Tool::new("test_tool", input_schema)
+            .with_title("Test tool")
+            .with_description("Test tool")
     }
 
     #[test]

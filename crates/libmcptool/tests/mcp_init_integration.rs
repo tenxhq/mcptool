@@ -143,12 +143,9 @@ async fn test_mcp_init_output_format() {
                 );
                 map
             }),
+            tasks: None,
         },
-        server_info: Implementation {
-            name: "Test Server".to_string(),
-            version: "1.2.3".to_string(),
-            title: Some("Test MCP Server".to_string()),
-        },
+        server_info: Implementation::new("Test Server", "1.2.3").with_title("Test MCP Server"),
         instructions: Some("Test instructions\nWith multiple lines".to_string()),
         _meta: None,
     };
@@ -171,11 +168,7 @@ async fn test_mcp_init_output_format() {
     let minimal_init_result = InitializeResult {
         protocol_version: "2025-06-18".to_string(),
         capabilities: ServerCapabilities::default(),
-        server_info: Implementation {
-            name: "Minimal".to_string(),
-            version: "0.1.0".to_string(),
-            title: None,
-        },
+        server_info: Implementation::new("Minimal", "0.1.0"),
         instructions: None,
         _meta: None,
     };

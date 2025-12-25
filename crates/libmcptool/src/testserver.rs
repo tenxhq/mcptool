@@ -17,7 +17,8 @@ use tmcp::{
         GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
         ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
-        Resource, ResourceTemplate, Role, ServerCapabilities, ServerNotification, Tool, ToolSchema,
+        Resource, ResourceTemplate, Role, ServerCapabilities, ServerNotification, TaskMetadata,
+        Tool, ToolSchema,
     },
 };
 use tokio::{runtime::Handle, task};
@@ -173,6 +174,7 @@ impl TestServerConn {
                 level,
                 logger: Some("testserver".to_string()),
                 data: serde_json::json!({ "message": message }),
+                _meta: None,
             };
             self.send_notification(context, notification).await
         } else {
@@ -293,6 +295,7 @@ impl ServerHandler for TestServerConn {
         context: &ServerCtx,
         name: String,
         arguments: Option<tmcp::Arguments>,
+        _task: Option<TaskMetadata>,
     ) -> Result<CallToolResult> {
         _ = self.state.output.h1("call_tool");
         let params = serde_json::json!({
@@ -431,47 +434,31 @@ impl ServerHandler for TestServerConn {
             serde_json::to_string_pretty(&params).unwrap()
         ));
 
-        let greeting_prompt = Prompt {
-            name: "greeting".to_string(),
-            title: None,
-            description: Some("Generate a greeting message".to_string()),
-            arguments: Some(vec![
-                PromptArgument {
-                    name: "name".to_string(),
-                    title: None,
-                    description: Some("The name to greet".to_string()),
-                    required: Some(true),
-                },
-                PromptArgument {
-                    name: "style".to_string(),
-                    title: None,
-                    description: Some("The greeting style (formal/casual)".to_string()),
-                    required: Some(false),
-                },
-            ]),
-            _meta: None,
-        };
+        let greeting_prompt = Prompt::new("greeting")
+            .with_description("Generate a greeting message")
+            .with_argument(
+                PromptArgument::new("name")
+                    .with_description("The name to greet")
+                    .required(true),
+            )
+            .with_argument(
+                PromptArgument::new("style")
+                    .with_description("The greeting style (formal/casual)")
+                    .required(false),
+            );
 
-        let code_review_prompt = Prompt {
-            name: "code_review".to_string(),
-            title: None,
-            description: Some("Review code and provide feedback".to_string()),
-            arguments: Some(vec![
-                PromptArgument {
-                    name: "language".to_string(),
-                    title: None,
-                    description: Some("Programming language of the code".to_string()),
-                    required: Some(true),
-                },
-                PromptArgument {
-                    name: "code".to_string(),
-                    title: None,
-                    description: Some("The code to review".to_string()),
-                    required: Some(true),
-                },
-            ]),
-            _meta: None,
-        };
+        let code_review_prompt = Prompt::new("code_review")
+            .with_description("Review code and provide feedback")
+            .with_argument(
+                PromptArgument::new("language")
+                    .with_description("Programming language of the code")
+                    .required(true),
+            )
+            .with_argument(
+                PromptArgument::new("code")
+                    .with_description("The code to review")
+                    .required(true),
+            );
 
         let result = ListPromptsResult::default()
             .with_prompt(greeting_prompt)
@@ -489,7 +476,7 @@ impl ServerHandler for TestServerConn {
         &self,
         _context: &ServerCtx,
         name: String,
-        arguments: Option<tmcp::Arguments>,
+        arguments: Option<HashMap<String, String>>,
     ) -> Result<GetPromptResult> {
         _ = self.state.output.h1("get_prompt");
         let params = serde_json::json!({
@@ -505,11 +492,11 @@ impl ServerHandler for TestServerConn {
             "greeting" => {
                 let name = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("name"))
+                    .and_then(|args| args.get("name").cloned())
                     .unwrap_or_else(|| "World".to_string());
                 let style = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("style"))
+                    .and_then(|args| args.get("style").cloned())
                     .unwrap_or_else(|| "casual".to_string());
 
                 let message = match style.as_str() {
@@ -524,11 +511,11 @@ impl ServerHandler for TestServerConn {
             "code_review" => {
                 let language = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("language"))
+                    .and_then(|args| args.get("language").cloned())
                     .unwrap_or_else(|| "unknown".to_string());
                 let code = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("code"))
+                    .and_then(|args| args.get("code").cloned())
                     .unwrap_or_default();
 
                 let review = format!(
@@ -885,6 +872,7 @@ fn run_interactive_repl_blocking(
                             level,
                             logger: Some("testserver-repl".to_string()),
                             data: serde_json::json!({ "message": message }),
+                            _meta: None,
                         };
 
                         match rt_handle.block_on(server_state.broadcast_notification(notification))
@@ -922,6 +910,7 @@ fn run_interactive_repl_blocking(
                                 parts[1],
                                 progress * 100.0
                             )),
+                            _meta: None,
                         };
 
                         match rt_handle.block_on(server_state.broadcast_notification(notification))
@@ -942,6 +931,7 @@ fn run_interactive_repl_blocking(
 
                         let notification = ServerNotification::ResourceUpdated {
                             uri: parts[1].to_string(),
+                            _meta: None,
                         };
 
                         match rt_handle.block_on(server_state.broadcast_notification(notification))
@@ -982,6 +972,7 @@ fn run_interactive_repl_blocking(
                             level: LoggingLevel::Info,
                             logger: Some("testserver-repl".to_string()),
                             data: serde_json::json!({ "message": format!("Server log level changed to: {:?}", level) }),
+                            _meta: None,
                         };
 
                         _ = rt_handle.block_on(server_state.broadcast_notification(notification));
