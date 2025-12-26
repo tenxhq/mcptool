@@ -9,6 +9,7 @@ use std::{
 
 use rustyline::{DefaultEditor, error::ReadlineError};
 use serde::{Deserialize, Serialize};
+use tmcp::schemars::{self, JsonSchema};
 use tmcp::{
     Error, Result, Server, ServerCtx, ServerHandler,
     schema::{
@@ -16,10 +17,10 @@ use tmcp::{
         GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
         ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
-        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata, Tool, ToolSchema,
+        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata, Tool,
     },
 };
-use tokio::{runtime::Handle, task};
+use tokio::{runtime::Handle, signal::ctrl_c, task};
 
 use crate::{ctx::Ctx, output::Output};
 
@@ -32,6 +33,13 @@ struct User {
     email: String,
     role: String,
     last_login: String,
+}
+
+/// Parameters for the echo tool.
+#[derive(Debug, Deserialize, JsonSchema)]
+struct EchoParams {
+    /// The message to echo back.
+    message: String,
 }
 
 /// Response structure for the users resource
@@ -264,19 +272,9 @@ impl ServerHandler for TestServerConn {
             serde_json::to_string_pretty(&params).unwrap()
         ));
 
-        let echo_tool = Tool::new(
-            "echo",
-            ToolSchema::default()
-                .with_property(
-                    "message",
-                    serde_json::json!({
-                        "type": "string",
-                        "description": "The message to echo back"
-                    }),
-                )
-                .with_required("message"),
-        )
-        .with_description("Echoes back the provided message");
+        // Use Tool::from_schema to derive the schema from EchoParams
+        let echo_tool = Tool::from_schema::<EchoParams>("echo")
+            .with_description("Echoes back the provided message");
 
         let result = ListToolsResult::default().with_tool(echo_tool);
 
@@ -323,12 +321,10 @@ impl ServerHandler for TestServerConn {
             return Err(Error::ToolNotFound(format!("Unknown tool: {name}")));
         }
 
-        let message = arguments
-            .as_ref()
-            .and_then(|args| args.get_string("message"))
-            .unwrap_or_else(|| "No message provided".to_string());
+        // Use into_params() for type-safe deserialization matching Tool::from_schema
+        let params: EchoParams = arguments.unwrap_or_default().into_params()?;
 
-        let result = CallToolResult::new().with_text_content(format!("Echo: {message}"));
+        let result = CallToolResult::new().with_text_content(format!("Echo: {}", params.message));
 
         _ = self.state.output.text(format!(
             "result: {}",
@@ -1056,7 +1052,7 @@ async fn handle_tcp_non_interactive(
     let handle = server.serve_tcp(addr).await?;
 
     // Wait for Ctrl+C
-    tokio::signal::ctrl_c()
+    ctrl_c()
         .await
         .map_err(|e| Error::InternalError(format!("Failed to listen for Ctrl+C: {e}")))?;
 
