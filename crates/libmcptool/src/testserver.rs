@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    future::Future,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -17,8 +16,7 @@ use tmcp::{
         GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
         ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
-        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata,
-        Tool, ToolSchema,
+        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata, Tool, ToolSchema,
     },
 };
 use tokio::{runtime::Handle, task};
@@ -1020,40 +1018,29 @@ fn create_test_server(
     (server, state)
 }
 
-/// Handle interactive mode for both TCP and HTTP servers
-async fn handle_interactive_mode<F, Fut>(
+/// Handle interactive mode for TCP server
+async fn handle_tcp_interactive_mode(
     ctx: &Ctx,
-    server_address: String,
+    server: Server<impl Fn() -> Box<dyn ServerHandler> + Clone + Send + Sync + 'static>,
+    addr: &str,
     server_state: TestServerState,
     output: &Output,
-    server_starter: F,
-) -> Result<()>
-where
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = Result<()>>,
-{
+) -> Result<()> {
+    let server_address = format!("tcp://{addr}");
     _ = output.trace_success(format!("Listening on: {}", server_address));
     _ = output.text("Starting interactive mode...");
 
-    let ctx_clone = ctx.clone();
+    // Start the server
+    let handle = server.serve_tcp(addr).await?;
 
-    // Start server and REPL concurrently
-    tokio::select! {
-        result = server_starter() => {
-            _ = output.text("Closing tcp server...");
-            result?;
-        }
-        // TODO Fix this
-        // _ = tokio::signal::ctrl_c() => {
-        //     _ = output.trace_warn("Shutting down server...");
-        //     result.stop().await?;
-        // }
-        resultb = run_interactive_repl(&ctx_clone, server_address, &server_state) => {
-            resultb.map_err(|e| Error::InternalError(e.to_string()))?;
-        }
-    }
+    // Run the REPL - server runs in background
+    let repl_result = run_interactive_repl(ctx, server_address, &server_state).await;
 
-    Ok(())
+    // Stop the server when REPL finishes
+    _ = output.trace_warn("Shutting down server...");
+    handle.stop().await?;
+
+    repl_result.map_err(|e| Error::InternalError(e.to_string()))
 }
 
 /// Handle non-interactive mode for TCP server
@@ -1065,7 +1052,16 @@ async fn handle_tcp_non_interactive(
     _ = output.text("Transport: TCP");
     _ = output.trace_success(format!("Listening on: tcp://{}", addr));
     _ = output.text("Press Ctrl+C to stop the server");
-    server.serve_tcp(addr).await
+
+    let handle = server.serve_tcp(addr).await?;
+
+    // Wait for Ctrl+C
+    tokio::signal::ctrl_c()
+        .await
+        .map_err(|e| Error::InternalError(format!("Failed to listen for Ctrl+C: {e}")))?;
+
+    _ = output.trace_warn("Shutting down server...");
+    handle.stop().await
 }
 
 pub async fn run_test_server(
@@ -1110,14 +1106,7 @@ pub async fn run_test_server(
     } else {
         let addr = format!("127.0.0.1:{port}");
         if interactive {
-            handle_interactive_mode(
-                ctx,
-                format!("tcp://{addr}"),
-                server_state,
-                &output.clone(),
-                || async move { server.serve_tcp(&addr).await },
-            )
-            .await?;
+            handle_tcp_interactive_mode(ctx, server, &addr, server_state, &output).await?;
         } else {
             handle_tcp_non_interactive(server, &addr, &output).await?;
         }

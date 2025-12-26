@@ -7,7 +7,8 @@ use libmcptool::{client, ctx::Ctx, target::Target};
 use tmcp::{
     ClientCtx, ClientHandler, Result as McpResult, Server, ServerCtx, ServerHandler,
     schema::{
-        ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel, ServerNotification,
+        ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel,
+        ServerNotification,
     },
 };
 use tokio::{
