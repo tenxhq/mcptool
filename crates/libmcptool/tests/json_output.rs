@@ -1,30 +1,22 @@
 //! Integration tests for JSON output formatting.
 #![allow(clippy::tests_outside_test_module)]
 
-use std::collections::HashMap;
-
 use libmcptool::output::{Output, listtools};
 use serde_json::json;
 use tmcp::schema::{ListToolsResult, Tool, ToolSchema};
 
 #[test]
 fn test_list_tools_result_json_output() {
-    // Create a mock ListToolsResult
-    let mut properties = HashMap::new();
-    properties.insert(
-        "param1".to_string(),
-        json!({
-            "type": "string",
-            "description": "First parameter"
-        }),
-    );
-
-    let input_schema = ToolSchema {
-        schema: None,
-        schema_type: "object".to_string(),
-        properties: Some(properties),
-        required: Some(vec!["param1".to_string()]),
-    };
+    // Create a mock ListToolsResult using the new ToolSchema builder API
+    let input_schema = ToolSchema::default()
+        .with_property(
+            "param1",
+            json!({
+                "type": "string",
+                "description": "First parameter"
+            }),
+        )
+        .with_required("param1");
 
     let tool = Tool::new("test_tool", input_schema).with_description("A test tool");
 

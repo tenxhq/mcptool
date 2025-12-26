@@ -151,14 +151,16 @@ mod tests {
         properties: serde_json::Map<String, serde_json::Value>,
         required: Option<Vec<String>>,
     ) -> Tool {
-        let properties_map: HashMap<String, serde_json::Value> = properties.into_iter().collect();
-        let input_schema = ToolSchema {
-            schema: None,
-            schema_type: "object".to_string(),
-            properties: Some(properties_map),
-            required,
-        };
-        Tool::new("test_tool", input_schema)
+        let mut schema = ToolSchema::default();
+        for (key, value) in properties {
+            schema = schema.with_property(&key, value);
+        }
+        if let Some(req) = required {
+            for r in req {
+                schema = schema.with_required(&r);
+            }
+        }
+        Tool::new("test_tool", schema)
             .with_title("Test tool")
             .with_description("Test tool")
     }
