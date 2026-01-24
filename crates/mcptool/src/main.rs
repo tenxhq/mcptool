@@ -31,6 +31,12 @@ struct ProxyArgs {
 
 #[derive(Subcommand)]
 enum AuthCommands {
+    /// Discover OAuth authorization server metadata from a server URL
+    Discover {
+        /// The server URL to discover metadata from (e.g., https://mcp.linear.app)
+        server_url: String,
+    },
+
     /// Add a new OAuth authentication entry
     Add {
         /// Name for the authentication entry
@@ -71,6 +77,14 @@ enum AuthCommands {
         /// Show the redirect URL that will be used without starting OAuth flow
         #[arg(long)]
         show_redirect_url: bool,
+
+        /// Skip metadata discovery and use manual configuration
+        #[arg(long)]
+        no_discover: bool,
+
+        /// Automatically register a dynamic client if supported (skip Y/n prompt)
+        #[arg(long)]
+        register: bool,
     },
 
     /// List all stored authentication entries
@@ -231,6 +245,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         Commands::Auth { command } => match command {
+            AuthCommands::Discover { server_url } => {
+                auth::discover_command(&ctx, server_url).await?;
+            }
             AuthCommands::Add {
                 name,
                 server_url,
@@ -242,6 +259,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 resource,
                 scopes,
                 show_redirect_url,
+                no_discover,
+                register,
             } => {
                 let args = auth::AddCommandArgs {
                     name,
@@ -254,6 +273,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     resource,
                     scopes,
                     show_redirect_url,
+                    no_discover,
+                    auto_register: register,
                 };
                 auth::add_command(&ctx, args).await?;
             }

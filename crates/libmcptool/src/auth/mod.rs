@@ -2,6 +2,8 @@
 
 /// OAuth credential addition functionality.
 mod add;
+/// OAuth authorization server metadata discovery.
+mod discovery;
 /// OAuth credential listing functionality.
 mod list;
 /// OAuth credential removal functionality.
@@ -10,6 +12,7 @@ mod remove;
 mod renew;
 
 pub use add::{AddCommandArgs, add_command};
+pub use discovery::{discover_command, discover_metadata, get_authorization_base_url};
 pub use list::list_command;
 pub use remove::remove_command;
 pub use renew::renew_command;
