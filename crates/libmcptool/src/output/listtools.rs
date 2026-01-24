@@ -4,7 +4,7 @@ use crate::{Result, output::Output};
 
 /// Formats a tool schema.
 fn toolschema(output: &Output, schema: &ToolSchema) -> Result<()> {
-    if let Some(properties) = &schema.properties
+    if let Some(properties) = schema.properties()
         && !properties.is_empty()
     {
         // Sort properties to show required ones first
@@ -100,7 +100,7 @@ pub fn list_tools_result(output: &Output, tools_result: &ListToolsResult) -> Res
             }
 
             // Input arguments
-            if let Some(properties) = &tool.input_schema.properties
+            if let Some(properties) = tool.input_schema.properties()
                 && !properties.is_empty()
             {
                 let out = out.indent();
@@ -111,7 +111,7 @@ pub fn list_tools_result(output: &Output, tools_result: &ListToolsResult) -> Res
 
             // Output schema
             if let Some(output_schema) = &tool.output_schema
-                && let Some(properties) = &output_schema.properties
+                && let Some(properties) = output_schema.properties()
                 && !properties.is_empty()
             {
                 let out = out.indent();

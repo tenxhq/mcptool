@@ -60,14 +60,7 @@ async fn test_mcp_init_with_test_server() {
     let (_ctx, _temp_dir) = create_test_ctx();
 
     // Create and start the server directly
-    let server = Server::default()
-        .with_handler(|| SimpleTestConn)
-        .with_capabilities(
-            ServerCapabilities::default()
-                .with_tools(Some(true))
-                .with_prompts(None)
-                .with_resources(None, None),
-        );
+    let server = Server::new(|| SimpleTestConn);
 
     let addr = format!("127.0.0.1:{port}");
     let server_handle = tokio::spawn(async move { server.serve_tcp(&addr).await });
@@ -143,11 +136,15 @@ async fn test_mcp_init_output_format() {
                 );
                 map
             }),
+            tasks: None,
         },
         server_info: Implementation {
             name: "Test Server".to_string(),
             version: "1.2.3".to_string(),
             title: Some("Test MCP Server".to_string()),
+            description: None,
+            icons: None,
+            website_url: None,
         },
         instructions: Some("Test instructions\nWith multiple lines".to_string()),
         _meta: None,
@@ -175,6 +172,9 @@ async fn test_mcp_init_output_format() {
             name: "Minimal".to_string(),
             version: "0.1.0".to_string(),
             title: None,
+            description: None,
+            icons: None,
+            website_url: None,
         },
         instructions: None,
         _meta: None,

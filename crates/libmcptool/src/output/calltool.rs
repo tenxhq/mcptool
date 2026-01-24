@@ -1,6 +1,6 @@
 //! Call tool result display formatting.
 
-use tmcp::schema::{Annotations, CallToolResult, Content, ResourceContents, Role};
+use tmcp::schema::{Annotations, CallToolResult, ContentBlock, ResourceContents, Role};
 
 use crate::{Result, output::Output};
 
@@ -57,9 +57,9 @@ pub fn call_tool_result(output: &Output, result: &CallToolResult) -> Result<()> 
 }
 
 /// Displays a single content item.
-fn display_content(output: &Output, content: &Content) -> Result<()> {
+fn display_content(output: &Output, content: &ContentBlock) -> Result<()> {
     match content {
-        Content::Text(text_content) => {
+        ContentBlock::Text(text_content) => {
             output.kv("Type", "Text")?;
             let out = output.indent();
 
@@ -73,7 +73,7 @@ fn display_content(output: &Output, content: &Content) -> Result<()> {
                 display_annotations(&out, annotations)?;
             }
         }
-        Content::Image(image_content) => {
+        ContentBlock::Image(image_content) => {
             output.kv("Type", "Image")?;
             let out = output.indent();
             out.kv("MIME Type", &image_content.mime_type)?;
@@ -84,7 +84,7 @@ fn display_content(output: &Output, content: &Content) -> Result<()> {
                 display_annotations(&out, annotations)?;
             }
         }
-        Content::Audio(audio_content) => {
+        ContentBlock::Audio(audio_content) => {
             output.kv("Type", "Audio")?;
             let out = output.indent();
             out.kv("MIME Type", &audio_content.mime_type)?;
@@ -95,7 +95,7 @@ fn display_content(output: &Output, content: &Content) -> Result<()> {
                 display_annotations(&out, annotations)?;
             }
         }
-        Content::Resource(resource) => {
+        ContentBlock::EmbeddedResource(resource) => {
             output.kv("Type", "Embedded Resource")?;
             let out = output.indent();
             display_resource_contents(&out, &resource.resource)?;
@@ -105,30 +105,31 @@ fn display_content(output: &Output, content: &Content) -> Result<()> {
                 display_annotations(&out, annotations)?;
             }
         }
-        Content::ResourceLink(resource_link) => {
+        ContentBlock::ResourceLink(resource_link) => {
             output.kv("Type", "Resource Link")?;
             let out = output.indent();
-            out.kv("Name", &resource_link.name)?;
-            out.kv("URI", &resource_link.uri)?;
+            let resource = &resource_link.resource;
+            out.kv("Name", &resource.name)?;
+            out.kv("URI", &resource.uri)?;
 
-            if let Some(title) = &resource_link.title {
+            if let Some(title) = &resource.title {
                 out.kv("Title", title)?;
             }
 
-            if let Some(description) = &resource_link.description {
+            if let Some(description) = &resource.description {
                 out.kv("Description", description)?;
             }
 
-            if let Some(mime_type) = &resource_link.mime_type {
+            if let Some(mime_type) = &resource.mime_type {
                 out.kv("MIME Type", mime_type)?;
             }
 
-            if let Some(size) = resource_link.size {
+            if let Some(size) = resource.size {
                 out.kv("Size", format!("{} bytes", size))?;
             }
 
             // Show annotations if present
-            if let Some(annotations) = &resource_link.annotations {
+            if let Some(annotations) = &resource.annotations {
                 display_annotations(&out, annotations)?;
             }
         }

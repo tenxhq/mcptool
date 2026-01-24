@@ -19,11 +19,15 @@ fn test_list_tools_result_json_output() {
         }),
     );
 
-    let input_schema = ToolSchema {
-        schema_type: "object".to_string(),
-        properties: Some(properties),
-        required: Some(vec!["param1".to_string()]),
-    };
+    let input_schema = ToolSchema::default()
+        .with_property(
+            "param1",
+            json!({
+                "type": "string",
+                "description": "First parameter"
+            }),
+        )
+        .with_required("param1");
 
     let tool = Tool::new("test_tool", input_schema).with_description("A test tool");
 

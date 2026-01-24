@@ -21,16 +21,13 @@ fn parse_interactive_arguments_with_io<R: BufRead, W: Write>(
 ) -> Result<Option<Arguments>> {
     output.text("Interactive mode: Enter tool parameters")?;
 
-    let properties = tool.input_schema.properties.as_ref();
-    let empty_vec = vec![];
-    let required = tool.input_schema.required.as_ref().unwrap_or(&empty_vec);
+    let properties = tool.input_schema.properties();
+    let required = tool.input_schema.required().unwrap_or_default();
 
-    if properties.is_none() {
+    let Some(properties) = properties else {
         output.text("No parameters required for this tool")?;
         return Ok(None);
-    }
-
-    let properties = properties.unwrap();
+    };
     let mut arg_map = HashMap::new();
 
     // Sort parameters by name for deterministic order in tests
@@ -38,7 +35,7 @@ fn parse_interactive_arguments_with_io<R: BufRead, W: Write>(
     sorted_params.sort_by_key(|(name, _)| *name);
 
     for (param_name, param_schema) in sorted_params {
-        let is_required = required.contains(param_name);
+        let is_required = required.contains(&param_name.as_str());
         let param_type = param_schema
             .get("type")
             .and_then(|t| t.as_str())
@@ -155,16 +152,21 @@ mod tests {
         required: Option<Vec<String>>,
     ) -> Tool {
         let properties_map: HashMap<String, serde_json::Value> = properties.into_iter().collect();
+        let mut input_schema = ToolSchema::default();
+        for (name, schema) in properties_map {
+            input_schema = input_schema.with_property(name, schema);
+        }
+        if let Some(required_fields) = required {
+            input_schema = input_schema.with_required_properties(required_fields);
+        }
         Tool {
             name: "test_tool".to_string(),
             title: Some("Test tool".to_string()),
             description: Some("Test tool".to_string()),
-            input_schema: ToolSchema {
-                schema_type: "object".to_string(),
-                properties: Some(properties_map),
-                required,
-            },
+            input_schema,
             output_schema: None,
+            execution: None,
+            icons: None,
             annotations: None,
             _meta: None,
         }

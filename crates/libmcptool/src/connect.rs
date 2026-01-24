@@ -150,6 +150,7 @@ fn display_notification(output: &Output, notification: &ServerNotification) -> R
             level,
             logger,
             data,
+            ..
         } => {
             let logger_str = logger.as_deref().unwrap_or("server");
             output.text(format!(
@@ -157,19 +158,21 @@ fn display_notification(output: &Output, notification: &ServerNotification) -> R
                 level, logger_str, data
             ))?;
         }
-        ServerNotification::ResourceUpdated { uri } => {
+        ServerNotification::ResourceUpdated { uri, .. } => {
             output.text(format!("[NOTIFICATION] Resource updated: {}", uri))?;
         }
-        ServerNotification::ResourceListChanged => {
+        ServerNotification::ResourceListChanged { .. } => {
             output.text("[NOTIFICATION] Resource list changed")?;
         }
-        ServerNotification::ToolListChanged => {
+        ServerNotification::ToolListChanged { .. } => {
             output.text("[NOTIFICATION] Tool list changed")?;
         }
-        ServerNotification::PromptListChanged => {
+        ServerNotification::PromptListChanged { .. } => {
             output.text("[NOTIFICATION] Prompt list changed")?;
         }
-        ServerNotification::Cancelled { request_id, reason } => {
+        ServerNotification::Cancelled {
+            request_id, reason, ..
+        } => {
             let reason_str = reason.as_deref().unwrap_or("no reason given");
             output.text(format!(
                 "[NOTIFICATION] Request cancelled: {:?} ({})",
@@ -181,12 +184,25 @@ fn display_notification(output: &Output, notification: &ServerNotification) -> R
             progress,
             total,
             message,
+            ..
         } => {
             let total_str = total.map(|t| format!("/{}", t)).unwrap_or_default();
             let message_str = message.as_deref().unwrap_or("");
             output.text(format!(
                 "[NOTIFICATION] Progress {:?}: {}{} - {}",
                 progress_token, progress, total_str, message_str
+            ))?;
+        }
+        ServerNotification::ElicitationComplete { elicitation_id, .. } => {
+            output.text(format!(
+                "[NOTIFICATION] Elicitation complete: {}",
+                elicitation_id
+            ))?;
+        }
+        ServerNotification::TaskStatus { params } => {
+            output.text(format!(
+                "[NOTIFICATION] Task {} status: {:?}",
+                params.task.task_id, params.task.status
             ))?;
         }
     }
