@@ -17,7 +17,7 @@ use tmcp::{
         GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
         ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
-        Resource, ResourceTemplate, Role, ServerCapabilities, ServerNotification, Tool, ToolSchema,
+        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata, Tool, ToolSchema,
     },
 };
 use tokio::{runtime::Handle, task};
@@ -173,6 +173,7 @@ impl TestServerConn {
                 level,
                 logger: Some("testserver".to_string()),
                 data: serde_json::json!({ "message": message }),
+                _meta: None,
             };
             self.send_notification(context, notification).await
         } else {
@@ -293,6 +294,7 @@ impl ServerHandler for TestServerConn {
         context: &ServerCtx,
         name: String,
         arguments: Option<tmcp::Arguments>,
+        _task: Option<TaskMetadata>,
     ) -> Result<CallToolResult> {
         _ = self.state.output.h1("call_tool");
         let params = serde_json::json!({
@@ -449,6 +451,7 @@ impl ServerHandler for TestServerConn {
                     required: Some(false),
                 },
             ]),
+            icons: None,
             _meta: None,
         };
 
@@ -470,6 +473,7 @@ impl ServerHandler for TestServerConn {
                     required: Some(true),
                 },
             ]),
+            icons: None,
             _meta: None,
         };
 
@@ -489,7 +493,7 @@ impl ServerHandler for TestServerConn {
         &self,
         _context: &ServerCtx,
         name: String,
-        arguments: Option<tmcp::Arguments>,
+        arguments: Option<HashMap<String, String>>,
     ) -> Result<GetPromptResult> {
         _ = self.state.output.h1("get_prompt");
         let params = serde_json::json!({
@@ -505,11 +509,11 @@ impl ServerHandler for TestServerConn {
             "greeting" => {
                 let name = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("name"))
+                    .and_then(|args| args.get("name").cloned())
                     .unwrap_or_else(|| "World".to_string());
                 let style = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("style"))
+                    .and_then(|args| args.get("style").cloned())
                     .unwrap_or_else(|| "casual".to_string());
 
                 let message = match style.as_str() {
@@ -524,11 +528,11 @@ impl ServerHandler for TestServerConn {
             "code_review" => {
                 let language = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("language"))
+                    .and_then(|args| args.get("language").cloned())
                     .unwrap_or_else(|| "unknown".to_string());
                 let code = arguments
                     .as_ref()
-                    .and_then(|args| args.get_string("code"))
+                    .and_then(|args| args.get("code").cloned())
                     .unwrap_or_default();
 
                 let review = format!(
@@ -885,6 +889,7 @@ fn run_interactive_repl_blocking(
                             level,
                             logger: Some("testserver-repl".to_string()),
                             data: serde_json::json!({ "message": message }),
+                            _meta: None,
                         };
 
                         match rt_handle.block_on(server_state.broadcast_notification(notification))
@@ -922,6 +927,7 @@ fn run_interactive_repl_blocking(
                                 parts[1],
                                 progress * 100.0
                             )),
+                            _meta: None,
                         };
 
                         match rt_handle.block_on(server_state.broadcast_notification(notification))
@@ -942,6 +948,7 @@ fn run_interactive_repl_blocking(
 
                         let notification = ServerNotification::ResourceUpdated {
                             uri: parts[1].to_string(),
+                            _meta: None,
                         };
 
                         match rt_handle.block_on(server_state.broadcast_notification(notification))
@@ -982,6 +989,7 @@ fn run_interactive_repl_blocking(
                             level: LoggingLevel::Info,
                             logger: Some("testserver-repl".to_string()),
                             data: serde_json::json!({ "message": format!("Server log level changed to: {:?}", level) }),
+                            _meta: None,
                         };
 
                         _ = rt_handle.block_on(server_state.broadcast_notification(notification));
@@ -1022,14 +1030,7 @@ fn create_test_server(
     let state = TestServerState::new(output, request_counter);
     let state_for_conn = state.clone();
 
-    let server = Server::default()
-        .with_handler(move || TestServerConn::new(state_for_conn.clone()))
-        .with_capabilities(
-            ServerCapabilities::default()
-                .with_tools(Some(true))
-                .with_prompts(None)
-                .with_resources(None, None),
-        );
+    let server = Server::new(move || TestServerConn::new(state_for_conn.clone()));
 
     (server, state)
 }
@@ -1079,7 +1080,9 @@ async fn handle_tcp_non_interactive(
     _ = output.text("Transport: TCP");
     _ = output.trace_success(format!("Listening on: tcp://{}", addr));
     _ = output.text("Press Ctrl+C to stop the server");
-    server.serve_tcp(addr).await
+    let _handle = server.serve_tcp(addr).await?;
+    // Server runs until interrupted
+    Ok(())
 }
 
 pub async fn run_test_server(
@@ -1129,7 +1132,10 @@ pub async fn run_test_server(
                 format!("tcp://{addr}"),
                 server_state,
                 &output.clone(),
-                || async move { server.serve_tcp(&addr).await },
+                || async move {
+                    let _handle = server.serve_tcp(&addr).await?;
+                    Ok(())
+                },
             )
             .await?;
         } else {

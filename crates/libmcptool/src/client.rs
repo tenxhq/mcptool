@@ -115,8 +115,9 @@ async fn connect_with_auth<C: ClientHandler + Send + 'static>(
     let mut client = Client::new("mcptool", VERSION).with_handler(conn);
 
     let init_result = match target {
-        Target::Http { host, port } => {
-            let url = format!("http://{host}:{port}");
+        Target::Http { host, port, path } => {
+            let path_str = path.as_deref().unwrap_or("");
+            let url = format!("http://{host}:{port}{path_str}");
             client
                 .connect_http_with_oauth(&url, oauth_client)
                 .await
@@ -126,8 +127,9 @@ async fn connect_with_auth<C: ClientHandler + Send + 'static>(
                     ))
                 })?
         }
-        Target::Https { host, port } => {
-            let url = format!("https://{host}:{port}");
+        Target::Https { host, port, path } => {
+            let path_str = path.as_deref().unwrap_or("");
+            let url = format!("https://{host}:{port}{path_str}");
             client
                 .connect_http_with_oauth(&url, oauth_client)
                 .await
@@ -174,14 +176,16 @@ pub async fn connect_to_server<C: ClientHandler + Send + 'static>(
                 .await
                 .map_err(|e| Error::Other(format!("Failed to initialize MCP client: {e}")))?
         }
-        Target::Http { host, port } => {
-            let url = format!("http://{host}:{port}");
+        Target::Http { host, port, path } => {
+            let path_str = path.as_deref().unwrap_or("");
+            let url = format!("http://{host}:{port}{path_str}");
             client.connect_http(&url).await.map_err(|e| {
                 Error::Other(format!("Failed to connect to HTTP endpoint {url}: {e}"))
             })?
         }
-        Target::Https { host, port } => {
-            let url = format!("https://{host}:{port}");
+        Target::Https { host, port, path } => {
+            let path_str = path.as_deref().unwrap_or("");
+            let url = format!("https://{host}:{port}{path_str}");
             client.connect_http(&url).await.map_err(|e| {
                 Error::Other(format!("Failed to connect to HTTPS endpoint {url}: {e}"))
             })?

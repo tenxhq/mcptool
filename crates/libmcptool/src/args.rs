@@ -24,6 +24,22 @@ impl ArgumentParser {
         Ok(Some(Arguments::from(arg_map)))
     }
 
+    /// Parse arguments from key=value format into a HashMap<String, String>
+    /// Used for prompts which take string-only arguments
+    pub fn parse_key_value_strings(args: Vec<String>) -> Result<Option<HashMap<String, String>>> {
+        if args.is_empty() {
+            return Ok(None);
+        }
+
+        let mut arg_map = HashMap::new();
+        for arg in args {
+            let (key, value) = Self::parse_key_value_pair(&arg)?;
+            arg_map.insert(key, value);
+        }
+
+        Ok(Some(arg_map))
+    }
+
     /// Parse a single key=value pair
     fn parse_key_value_pair(arg: &str) -> Result<(String, String)> {
         let parts: Vec<&str> = arg.splitn(2, '=').collect();

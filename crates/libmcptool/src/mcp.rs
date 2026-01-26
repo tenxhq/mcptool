@@ -1,9 +1,10 @@
 //! MCP client command implementations.
 
 use tmcp::{
-    Client, ClientHandler, ServerAPI,
+    Client, ClientHandler,
     schema::{
-        ArgumentInfo, InitializeResult, LoggingLevel, PromptReference, Reference, ResourceReference,
+        ArgumentInfo, InitializeResult, LoggingLevel, PromptReference, Reference,
+        ResourceTemplateReference,
     },
 };
 
@@ -201,8 +202,8 @@ pub async fn get_prompt<C: ClientHandler + 'static>(
 ) -> Result<()> {
     output.text(format!("Getting prompt: {name}"))?;
 
-    // Parse arguments from key=value format
-    let arguments = ArgumentParser::parse_key_value_args(args)?;
+    // Parse arguments from key=value format into HashMap<String, String>
+    let arguments = ArgumentParser::parse_key_value_strings(args)?;
 
     let result = client
         .get_prompt(name, arguments)
@@ -253,7 +254,7 @@ pub async fn complete<C: ClientHandler + 'static>(
 
     // Parse the reference into Reference
     let completion_ref = if reference.starts_with("resource://") {
-        Reference::Resource(ResourceReference {
+        Reference::Resource(ResourceTemplateReference {
             uri: reference.to_string(),
         })
     } else if reference.starts_with("prompt://") {
@@ -277,7 +278,7 @@ pub async fn complete<C: ClientHandler + 'static>(
     };
 
     let result = client
-        .complete(completion_ref, argument_info)
+        .complete(completion_ref, argument_info, None)
         .timed("    response", output)
         .await?;
     output::complete::complete_result(output, &result)?;

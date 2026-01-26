@@ -5,10 +5,10 @@ use std::{error::Error, time::Duration};
 
 use libmcptool::{client, ctx::Ctx, target::Target};
 use tmcp::{
-    ClientCtx, ClientHandler, Result as McpResult, Server, ServerAPI, ServerCtx, ServerHandler,
+    ClientCtx, ClientHandler, Result as McpResult, Server, ServerCtx, ServerHandler,
     schema::{
         ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel,
-        ServerCapabilities, ServerNotification,
+        ServerNotification,
     },
 };
 use tokio::{
@@ -46,6 +46,7 @@ impl ServerHandler for SimpleTestServerConn {
             level,
             logger: Some("test-notification".to_string()),
             data: serde_json::json!({ "message": "test-notification-message" }),
+            _meta: None,
         };
         _ = context.notify(notification);
         Ok(())
@@ -92,11 +93,10 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     drop(listener); // Release the port so server can bind to it
 
     // Start simple test server
-    let server = Server::default()
-        .with_handler(move || SimpleTestServerConn {
-            client_notification_sender: client_notification_sender.clone(),
-        })
-        .with_capabilities(ServerCapabilities::default().with_tools(Some(true)));
+    let client_notification_sender_clone = client_notification_sender.clone();
+    let server = Server::new(move || SimpleTestServerConn {
+        client_notification_sender: client_notification_sender_clone.clone(),
+    });
 
     let addr = format!("127.0.0.1:{}", port);
     let server_handle = tokio::spawn(async move {
@@ -124,7 +124,10 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     )
     .await;
     assert!(
-        matches!(notification, Ok(Some(ClientNotification::Initialized))),
+        matches!(
+            notification,
+            Ok(Some(ClientNotification::Initialized { .. }))
+        ),
         "Expected an initialized notification from the client"
     );
 
