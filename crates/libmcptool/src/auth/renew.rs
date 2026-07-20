@@ -1,9 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use oauth2::{
-    AuthUrl, ClientId, ClientSecret, RefreshToken, RequestTokenError, TokenResponse, TokenUrl,
-    basic::BasicClient,
-};
+use tmcp::auth::{OAuth2Client, OAuth2Config, OAuth2Token};
 
 use crate::{Error, Result, ctx::Ctx};
 
@@ -15,7 +12,7 @@ pub async fn renew_command(ctx: &Ctx, name: String) -> Result<()> {
     let mut auth = storage.get_auth(&name)?;
 
     // Check if we have a refresh token
-    let refresh_token = auth.refresh_token.as_ref().ok_or(Error::Other(
+    auth.refresh_token.as_ref().ok_or(Error::Other(
         "No refresh token available for this authentication entry".to_string(),
     ))?;
 
@@ -41,50 +38,32 @@ pub async fn renew_command(ctx: &Ctx, name: String) -> Result<()> {
     ctx.output.text("")?;
     ctx.output.text("Refreshing token...")?;
 
-    // Create OAuth client directly using oauth2 crate
-    let mut client = BasicClient::new(ClientId::new(auth.client_id.clone()))
-        .set_auth_uri(
-            AuthUrl::new(auth.auth_url.clone())
-                .map_err(|e| Error::Other(format!("Invalid auth URL: {e}")))?,
-        )
-        .set_token_uri(
-            TokenUrl::new(auth.token_url.clone())
-                .map_err(|e| Error::Other(format!("Invalid token URL: {e}")))?,
-        );
-
-    if let Some(client_secret) = auth.client_secret.as_ref() {
-        client = client.set_client_secret(ClientSecret::new(client_secret.clone()));
-    }
-
-    // Exchange refresh token for new access token
-    let refresh_token_obj = RefreshToken::new(refresh_token.clone());
-    let token_result = client
-        .exchange_refresh_token(&refresh_token_obj)
-        .request_async(&reqwest::Client::new())
-        .await
-        .map_err(|e| {
-            Error::Other(match e {
-                RequestTokenError::ServerResponse(response) => {
-                    format!("Server error: {:?}", response.error())
-                }
-                RequestTokenError::Request(e) => format!("Request error: {e}"),
-                RequestTokenError::Parse(e, _) => format!("Parse error: {e}"),
-                RequestTokenError::Other(e) => format!("Other error: {e}"),
-            })
-        })?;
+    let client = OAuth2Client::new(OAuth2Config {
+        client_id: auth.client_id.clone(),
+        client_secret: auth.client_secret.clone(),
+        auth_url: auth.auth_url.clone(),
+        token_url: auth.token_url.clone(),
+        redirect_url: auth
+            .redirect_url
+            .clone()
+            .unwrap_or_else(|| "http://localhost:0".to_owned()),
+        resource: String::new(),
+        scopes: auth.scopes.clone(),
+    })?;
+    client
+        .set_token(OAuth2Token::from_system_time(
+            auth.access_token.clone().unwrap_or_default(),
+            auth.refresh_token.clone(),
+            auth.expires_at,
+        ))
+        .await;
+    let token = client.refresh_access_token().await?;
+    let expires_at = token.system_expires_at();
 
     // Update the stored auth with new token information
-    auth.access_token = Some(token_result.access_token().secret().clone());
-
-    // Update refresh token if a new one was provided
-    if let Some(new_refresh_token) = token_result.refresh_token() {
-        auth.refresh_token = Some(new_refresh_token.secret().clone());
-    }
-
-    // Update expiration time based on the response
-    auth.expires_at = token_result
-        .expires_in()
-        .map(|duration| SystemTime::now() + duration);
+    auth.access_token = Some(token.access_token);
+    auth.refresh_token = token.refresh_token;
+    auth.expires_at = expires_at;
 
     // Save the updated auth
     storage.store_auth(&auth)?;

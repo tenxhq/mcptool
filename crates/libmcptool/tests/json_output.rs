@@ -20,10 +20,7 @@ fn test_list_tools_result_json_output() {
 
     let tool = Tool::new("test_tool", input_schema).with_description("A test tool");
 
-    let tools_result = ListToolsResult {
-        tools: vec![tool],
-        next_cursor: None,
-    };
+    let tools_result = ListToolsResult::default().with_tool(tool);
 
     // Test JSON output
     let json_output = Output::new(false, 80).with_json(true);
@@ -39,10 +36,7 @@ fn test_list_tools_result_json_output() {
 #[test]
 fn test_list_tools_result_empty_tools() {
     // Create an empty ListToolsResult
-    let tools_result = ListToolsResult {
-        tools: vec![],
-        next_cursor: None,
-    };
+    let tools_result = ListToolsResult::default();
 
     // Test JSON output with empty tools
     let json_output = Output::new(false, 80).with_json(true);

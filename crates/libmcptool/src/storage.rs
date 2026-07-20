@@ -28,6 +28,7 @@ pub struct StoredAuth {
 }
 
 /// Storage for authentication tokens and credentials.
+#[derive(Clone)]
 pub struct TokenStorage {
     /// Directory where configuration files are stored.
     config_dir: PathBuf,

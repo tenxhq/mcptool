@@ -1,10 +1,7 @@
-use std::{
-    net::TcpListener,
-    time::{Duration, Instant, SystemTime},
-};
+use std::{net::TcpListener, time::Duration};
 
 use rustyline::DefaultEditor;
-use tmcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config, OAuth2Token};
+use tmcp::auth::{OAuth2CallbackServer, OAuth2Client, OAuth2Config};
 use tokio::{signal, time::timeout};
 
 use crate::{
@@ -144,10 +141,11 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     };
 
     // Create OAuth client
-    let mut oauth_client = OAuth2Client::new(oauth_config)?;
+    let oauth_client = OAuth2Client::new(oauth_config)?;
 
     // Get authorization URL
-    let (auth_url_with_params, csrf_token) = oauth_client.get_authorization_url();
+    let flow = oauth_client.begin_authorization();
+    let auth_url_with_params = flow.auth_url().clone();
 
     ctx.output.text("")?;
     ctx.output.h1("Authorization required")?;
@@ -183,7 +181,7 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     // Handle different callback modes
     let token_result = if let Some(callback_port) = use_local_server {
         // Use local callback server
-        let callback_server = OAuth2CallbackServer::new(callback_port);
+        let callback_server = OAuth2CallbackServer::new(callback_port).await?;
 
         ctx.output.text("Waiting for authorization callback...")?;
         ctx.output.text(format!(
@@ -196,15 +194,15 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
 
         // Use tokio::select to handle both callback and cancellation
         tokio::select! {
-            result = wait_for_callback(&mut oauth_client, callback_server, csrf_token.secret().to_string()) => {
-                Ok(result)
+            result = callback_server.wait_for_callback() => {
+                Ok(result.map_err(Error::from))
             }
             _ = signal::ctrl_c() => {
                 ctx.output.text("")?;
                 ctx.output.trace_warn("Cancelled! Switching to manual mode...")?;
                 timeout(
                     Duration::from_secs(300),
-                    wait_for_manual_callback(&mut oauth_client, csrf_token.secret().to_string(), &ctx.output),
+                    wait_for_manual_callback(&ctx.output),
                 ).await
             }
         }
@@ -218,18 +216,24 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
 
         timeout(
             Duration::from_secs(300), // 5 minute timeout
-            wait_for_manual_callback(
-                &mut oauth_client,
-                csrf_token.secret().to_string(),
-                &ctx.output,
-            ),
+            wait_for_manual_callback(&ctx.output),
         )
         .await
     };
 
-    let token = match token_result {
-        Ok(Ok(token)) => token,
-        Ok(Err(e)) => {
+    let (code, state) = match token_result {
+        Ok(Ok(callback)) => callback,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => {
+            return Err(Error::Other(
+                "OAuth authorization timed out after 5 minutes".to_string(),
+            ));
+        }
+    };
+
+    let token = match oauth_client.exchange_code(flow, code, state).await {
+        Ok(token) => token,
+        Err(e) => {
             let error_msg = format!("{e}");
             if error_msg.contains("redirect_uri") || error_msg.contains("redirect URL") {
                 ctx.output.text("")?;
@@ -273,20 +277,11 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
             }
             return Err(Error::Other(format!("OAuth error: {error_msg}")));
         }
-        Err(_) => {
-            return Err(Error::Other(
-                "OAuth authorization timed out after 5 minutes".to_string(),
-            ));
-        }
     };
 
     ctx.output.trace_success("Authorization successful!")?;
 
-    // Convert token expiration from Instant to SystemTime
-    let expires_at = token.expires_at.map(|instant| {
-        let duration_since_now = instant.duration_since(Instant::now());
-        SystemTime::now() + duration_since_now
-    });
+    let expires_at = token.system_expires_at();
 
     // Store the authentication
     let stored_auth = StoredAuth {
@@ -315,34 +310,8 @@ pub async fn add_command(ctx: &Ctx, args: AddCommandArgs) -> Result<()> {
     Ok(())
 }
 
-/// Waits for the OAuth callback to be received via local server.
-async fn wait_for_callback(
-    oauth_client: &mut OAuth2Client,
-    callback_server: OAuth2CallbackServer,
-    expected_state: String,
-) -> Result<OAuth2Token> {
-    // Wait for the OAuth callback
-    let (code, state) = callback_server.wait_for_callback().await?;
-
-    // Verify the state parameter matches for CSRF protection
-    if state != expected_state {
-        return Err(Error::Other(
-            "State parameter mismatch - possible CSRF attack".to_string(),
-        ));
-    }
-
-    // Exchange the authorization code for an access token
-    let token = oauth_client.exchange_code(code, state).await?;
-
-    Ok(token)
-}
-
 /// Waits for the OAuth callback URL to be manually entered by the user.
-async fn wait_for_manual_callback(
-    oauth_client: &mut OAuth2Client,
-    expected_state: String,
-    output: &Output,
-) -> Result<OAuth2Token> {
+async fn wait_for_manual_callback(output: &Output) -> Result<(String, String)> {
     let mut rl = DefaultEditor::new()?;
 
     output.text("")?;
@@ -383,20 +352,7 @@ async fn wait_for_manual_callback(
         "No state parameter found in callback URL".to_string(),
     ))?;
 
-    // Verify the state parameter matches for CSRF protection
-    if state != expected_state {
-        return Err(Error::Other(
-            "State parameter mismatch - possible CSRF attack".to_string(),
-        ));
-    }
-
-    // Exchange the authorization code for an access token
-    let token = oauth_client
-        .exchange_code(code, state)
-        .await
-        .map_err(|e| Error::Other(format!("Token exchange failed: {e}")))?;
-
-    Ok(token)
+    Ok((code, state))
 }
 
 /// Finds an available port on localhost.

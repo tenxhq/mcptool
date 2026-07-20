@@ -38,9 +38,9 @@ impl ServerHandler for SimpleTestConn {
     ) -> McpResult<InitializeResult> {
         Ok(InitializeResult::new("mcptool-testserver")
             .with_version("0.1.0")
-            .with_tools(true)
-            .with_prompts(true)
-            .with_resources(true, true)
+            .with_tools(Some(true))
+            .with_prompts(Some(true))
+            .with_resources(Some(true), Some(true))
             .with_instructions("mcptool test server"))
     }
 }
@@ -115,13 +115,16 @@ async fn test_mcp_init_output_format() {
         capabilities: ServerCapabilities {
             tools: Some(ToolsCapability {
                 list_changed: Some(true),
+                _extra: Default::default(),
             }),
             resources: Some(ResourcesCapability {
                 subscribe: Some(true),
                 list_changed: Some(false),
+                _extra: Default::default(),
             }),
             prompts: Some(PromptsCapability {
                 list_changed: Some(false),
+                _extra: Default::default(),
             }),
             logging: Some(serde_json::Value::Object(serde_json::Map::new())),
             completions: Some(serde_json::Value::Object(serde_json::Map::new())),
@@ -137,10 +140,12 @@ async fn test_mcp_init_output_format() {
                 map
             }),
             tasks: None,
+            _extra: Default::default(),
         },
         server_info: Implementation::new("Test Server", "1.2.3").with_title("Test MCP Server"),
         instructions: Some("Test instructions\nWith multiple lines".to_string()),
         _meta: None,
+        _extra: Default::default(),
     };
 
     // Test JSON output
@@ -164,6 +169,7 @@ async fn test_mcp_init_output_format() {
         server_info: Implementation::new("Minimal", "0.1.0"),
         instructions: None,
         _meta: None,
+        _extra: Default::default(),
     };
 
     {

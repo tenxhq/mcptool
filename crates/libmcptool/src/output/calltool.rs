@@ -132,6 +132,10 @@ fn display_content(output: &Output, content: &ContentBlock) -> Result<()> {
                 display_annotations(&out, annotations)?;
             }
         }
+        ContentBlock::Unknown(content) => {
+            output.kv("Type", format!("Unknown ({})", content.content_type))?;
+            output.json_value(content)?;
+        }
     }
     Ok(())
 }

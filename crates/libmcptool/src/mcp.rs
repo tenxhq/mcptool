@@ -186,7 +186,7 @@ pub async fn read_resource<C: ClientHandler + 'static>(
 ) -> Result<()> {
     output.text(format!("Reading resource: {uri}"))?;
     let result = client
-        .resources_read(uri)
+        .read_resource(uri)
         .timed("    response", output)
         .await?;
     output::readresource::read_resource_result(output, &result)?;
@@ -221,7 +221,7 @@ pub async fn subscribe_resource<C: ClientHandler + 'static>(
 ) -> Result<()> {
     output.text(format!("Subscribing to resource: {uri}"))?;
     client
-        .resources_subscribe(uri)
+        .subscribe_resource(uri)
         .timed("    response", output)
         .await?;
     output.trace_success(format!("Successfully subscribed to resource: {uri}"))?;
@@ -236,7 +236,7 @@ pub async fn unsubscribe_resource<C: ClientHandler + 'static>(
 ) -> Result<()> {
     output.text(format!("Unsubscribing from resource: {uri}"))?;
     client
-        .resources_unsubscribe(uri)
+        .unsubscribe_resource(uri)
         .timed("    response", output)
         .await?;
     output.trace_success(format!("Successfully unsubscribed from resource: {uri}"))?;

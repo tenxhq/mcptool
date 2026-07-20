@@ -10,7 +10,7 @@ pub fn init_result(output: &Output, init_result: &InitializeResult) -> Result<()
     } else {
         let title = format!(
             "{} ({})",
-            &init_result.server_info.name, &init_result.server_info.version
+            init_result.server_info.name, init_result.server_info.version
         );
 
         // Output as formatted text

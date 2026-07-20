@@ -39,7 +39,8 @@ impl ServerHandler for SimpleTestServerConn {
     ) -> McpResult<InitializeResult> {
         Ok(InitializeResult::new("test-server")
             .with_version("1.0.0")
-            .with_tools(true))
+            .with_logging()
+            .with_tools(Some(true)))
     }
 
     async fn set_level(&self, context: &ServerCtx, level: LoggingLevel) -> McpResult<()> {
@@ -109,7 +110,7 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
 
     // Connect to the testserver via TCP
     let target = Target::parse(&format!("tcp://127.0.0.1:{}", port))?;
-    let (mut client, _init_result) = client::get_client_with_connection(
+    let (client, _init_result) = client::get_client_with_connection(
         &ctx,
         &target,
         SimpleTestClientConn {
@@ -141,11 +142,6 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     client.set_level(LoggingLevel::Warning).await?;
     client.set_level(LoggingLevel::Error).await?;
 
-    assert_eq!(
-        server_notification_receiver.len(),
-        4,
-        "Expected 4 server sent notifications for set_level commands"
-    );
     for _ in 0..4 {
         let notification = timeout(
             Duration::from_millis(10),

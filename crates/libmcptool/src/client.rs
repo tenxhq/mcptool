@@ -1,9 +1,6 @@
 //! MCP client connection management.
 
-use std::{
-    sync::Arc,
-    time::{Instant, SystemTime},
-};
+use std::sync::Arc;
 
 use tmcp::{
     Client, ClientHandler,
@@ -14,6 +11,7 @@ use tmcp::{
 use crate::{
     Error, Result,
     ctx::{Ctx, VERSION},
+    storage::{StoredAuth, TokenStorage},
     target::Target,
     utils::TimedFuture,
 };
@@ -69,48 +67,35 @@ async fn connect_with_auth<C: ClientHandler + Send + 'static>(
 
     let storage = ctx.storage()?;
     let auth = storage.get_auth(auth_name)?;
-    if let Some(expires_at) = auth.expires_at
-        && expires_at <= SystemTime::now()
-    {
-        return Err(Error::Other(
-            "Access token has expired. Please re-authenticate with 'mcptool auth add/renew'"
-                .to_string(),
-        ));
-    }
-
     // Create OAuth config
     let oauth_config = OAuth2Config {
-        client_id: auth.client_id,
-        client_secret: auth.client_secret,
-        auth_url: auth.auth_url,
-        token_url: auth.token_url,
+        client_id: auth.client_id.clone(),
+        client_secret: auth.client_secret.clone(),
+        auth_url: auth.auth_url.clone(),
+        token_url: auth.token_url.clone(),
         redirect_url: auth
             .redirect_url
+            .clone()
             .unwrap_or_else(|| "http://localhost:0".to_string()),
         resource: "".to_string(), // Empty resource, could be stored in auth if needed
-        scopes: auth.scopes,
+        scopes: auth.scopes.clone(),
     };
 
     // Create OAuth client
     let oauth_client = OAuth2Client::new(oauth_config)?;
 
     // Set the stored tokens if available
-    if let Some(access_token) = auth.access_token {
-        let token = OAuth2Token {
+    if let Some(access_token) = auth.access_token.clone() {
+        let token = OAuth2Token::from_system_time(
             access_token,
-            refresh_token: auth.refresh_token,
-            expires_at: auth.expires_at.map(|system_time| {
-                // Convert SystemTime to Instant
-                match system_time.duration_since(SystemTime::now()) {
-                    Ok(duration) => Instant::now() + duration,
-                    Err(_) => Instant::now(), // Token is already expired
-                }
-            }),
-        };
+            auth.refresh_token.clone(),
+            auth.expires_at,
+        );
         oauth_client.set_token(token).await;
     }
 
     let oauth_client = Arc::new(oauth_client);
+    persist_oauth_revisions(&oauth_client, storage.clone(), auth);
 
     let mut client = Client::new("mcptool", VERSION).with_handler(conn);
 
@@ -141,6 +126,39 @@ async fn connect_with_auth<C: ClientHandler + Send + 'static>(
     };
 
     Ok((client, init_result))
+}
+
+/// Persists automatic OAuth refreshes while the connected client owns the OAuth client.
+fn persist_oauth_revisions(
+    oauth_client: &Arc<OAuth2Client>,
+    storage: TokenStorage,
+    mut auth: StoredAuth,
+) {
+    let mut revisions = oauth_client.subscribe_token_revisions();
+    let oauth_client = Arc::downgrade(oauth_client);
+    tokio::spawn(async move {
+        while revisions.changed().await.is_ok() {
+            let Some(oauth_client) = oauth_client.upgrade() else {
+                return;
+            };
+            let Some(token) = oauth_client.current_token().await else {
+                continue;
+            };
+            let expires_at = token.system_expires_at();
+            if auth.access_token.as_deref() == Some(token.access_token.as_str())
+                && auth.refresh_token.as_deref() == token.refresh_token.as_deref()
+                && auth.expires_at == expires_at
+            {
+                continue;
+            }
+            auth.access_token = Some(token.access_token);
+            auth.refresh_token = token.refresh_token;
+            auth.expires_at = expires_at;
+            if let Err(error) = storage.store_auth(&auth) {
+                tracing::warn!(%error, "failed to persist refreshed OAuth token");
+            }
+        }
+    });
 }
 
 use tokio::process::Command;

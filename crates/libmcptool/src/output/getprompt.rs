@@ -71,6 +71,10 @@ impl OutputFormatter<GetPromptResult> for GetPromptFormatter {
                     )?;
                     MetadataDisplay::display_mime_type(output, &resource_link.resource.mime_type)?;
                 }
+                schema::ContentBlock::Unknown(content) => {
+                    output.text(format!("Unknown content type: {}", content.content_type))?;
+                    output.json_value(content)?;
+                }
             }
         }
 

@@ -8,13 +8,13 @@ use std::{
 };
 
 use rustyline::{DefaultEditor, error::ReadlineError};
+use schemars::{self, JsonSchema};
 use serde::{Deserialize, Serialize};
-use tmcp::schemars::{self, JsonSchema};
 use tmcp::{
     Error, Result, Server, ServerCtx, ServerHandler,
     schema::{
-        Annotations, CallToolResult, ClientCapabilities, ClientNotification, Cursor,
-        GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
+        Annotations, CallToolResponse, CallToolResult, ClientCapabilities, ClientNotification,
+        Cursor, GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
         ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
         LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
         Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata, Tool,
@@ -238,9 +238,9 @@ impl ServerHandler for TestServerConn {
 
         let result = InitializeResult::new("mcptool-testserver")
             .with_version(env!("CARGO_PKG_VERSION"))
-            .with_tools(true)
-            .with_prompts(true)
-            .with_resources(true, true)
+            .with_tools(Some(true))
+            .with_prompts(Some(true))
+            .with_resources(Some(true), Some(true))
             .with_instructions("mcptool test server");
 
         _ = self.state.output.text(format!(
@@ -292,7 +292,7 @@ impl ServerHandler for TestServerConn {
         name: String,
         arguments: Option<tmcp::Arguments>,
         _task: Option<TaskMetadata>,
-    ) -> Result<CallToolResult> {
+    ) -> Result<CallToolResponse> {
         _ = self.state.output.h1("call_tool");
         let params = serde_json::json!({
             "name": name,
@@ -339,7 +339,7 @@ impl ServerHandler for TestServerConn {
         )
         .await?;
 
-        Ok(result)
+        Ok(result.into())
     }
 
     async fn notification(
@@ -433,12 +433,12 @@ impl ServerHandler for TestServerConn {
             .with_argument(
                 PromptArgument::new("name")
                     .with_description("The name to greet")
-                    .required(true),
+                    .with_required(true),
             )
             .with_argument(
                 PromptArgument::new("style")
                     .with_description("The greeting style (formal/casual)")
-                    .required(false),
+                    .with_required(false),
             );
 
         let code_review_prompt = Prompt::new("code_review")
@@ -446,12 +446,12 @@ impl ServerHandler for TestServerConn {
             .with_argument(
                 PromptArgument::new("language")
                     .with_description("Programming language of the code")
-                    .required(true),
+                    .with_required(true),
             )
             .with_argument(
                 PromptArgument::new("code")
                     .with_description("The code to review")
-                    .required(true),
+                    .with_required(true),
             );
 
         let result = ListPromptsResult::default()
@@ -1000,10 +1000,7 @@ fn run_interactive_repl_blocking(
 fn create_test_server(
     output: Output,
     request_counter: Arc<AtomicU64>,
-) -> (
-    Server<impl Fn() -> Box<dyn ServerHandler> + Clone + Send + Sync + 'static>,
-    TestServerState,
-) {
+) -> (Server, TestServerState) {
     let state = TestServerState::new(output, request_counter);
     let state_for_conn = state.clone();
 
@@ -1017,7 +1014,7 @@ fn create_test_server(
 /// Handle interactive mode for TCP server
 async fn handle_tcp_interactive_mode(
     ctx: &Ctx,
-    server: Server<impl Fn() -> Box<dyn ServerHandler> + Clone + Send + Sync + 'static>,
+    server: Server,
     addr: &str,
     server_state: TestServerState,
     output: &Output,
@@ -1040,11 +1037,7 @@ async fn handle_tcp_interactive_mode(
 }
 
 /// Handle non-interactive mode for TCP server
-async fn handle_tcp_non_interactive(
-    server: Server<impl Fn() -> Box<dyn ServerHandler> + Clone + Send + Sync + 'static>,
-    addr: &str,
-    output: &Output,
-) -> Result<()> {
+async fn handle_tcp_non_interactive(server: Server, addr: &str, output: &Output) -> Result<()> {
     _ = output.text("Transport: TCP");
     _ = output.trace_success(format!("Listening on: tcp://{}", addr));
     _ = output.text("Press Ctrl+C to stop the server");
