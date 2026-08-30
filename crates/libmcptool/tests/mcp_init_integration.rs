@@ -8,8 +8,8 @@ use tempfile::TempDir;
 use tmcp::{
     Result as McpResult, Server, ServerCtx, ServerHandler,
     schema::{
-        ClientCapabilities, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
-        PromptsCapability, ResourcesCapability, ServerCapabilities, ToolsCapability,
+        ClientCapabilities, Implementation, InitializeResult, PromptsCapability, ProtocolVersion,
+        ResourcesCapability, ServerCapabilities, SupportedProtocolVersions, ToolsCapability,
     },
 };
 use tokio::{net::TcpListener, time::sleep};
@@ -32,7 +32,7 @@ impl ServerHandler for SimpleTestConn {
     async fn initialize(
         &self,
         _context: &ServerCtx,
-        _protocol_version: String,
+        _protocol_version: ProtocolVersion,
         _capabilities: ClientCapabilities,
         _client_info: Implementation,
     ) -> McpResult<InitializeResult> {
@@ -59,7 +59,8 @@ async fn test_mcp_init_with_test_server() {
 
     let (_ctx, _temp_dir) = create_test_ctx();
 
-    // Create and start the server - capabilities come from handler's initialize response
+    // Create and start the server - capabilities come from handler's initialize
+    // response
     let server = Server::new(|| SimpleTestConn);
 
     let addr = format!("127.0.0.1:{port}");
@@ -84,7 +85,10 @@ async fn test_mcp_init_with_test_server() {
         // Verify basic fields
         assert_eq!(init_result.server_info.name, "mcptool-testserver");
         assert_eq!(init_result.server_info.version, "0.1.0");
-        assert_eq!(init_result.protocol_version, LATEST_PROTOCOL_VERSION);
+        assert_eq!(
+            &init_result.protocol_version,
+            SupportedProtocolVersions::default().preferred()
+        );
     }
 
     // Test with text output
@@ -111,7 +115,7 @@ async fn test_mcp_init_output_format() {
     // We use a mock InitializeResult to avoid needing a real server
 
     let init_result = InitializeResult {
-        protocol_version: "2025-06-18".to_string(),
+        protocol_version: "2025-06-18".parse().expect("valid protocol version"),
         capabilities: ServerCapabilities {
             tools: Some(ToolsCapability {
                 list_changed: Some(true),
@@ -164,7 +168,7 @@ async fn test_mcp_init_output_format() {
 
     // Test with minimal server (no optional fields)
     let minimal_init_result = InitializeResult {
-        protocol_version: "2025-06-18".to_string(),
+        protocol_version: "2025-06-18".parse().expect("valid protocol version"),
         capabilities: ServerCapabilities::default(),
         server_info: Implementation::new("Minimal", "0.1.0"),
         instructions: None,

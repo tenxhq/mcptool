@@ -19,7 +19,10 @@ pub fn init_result(output: &Output, init_result: &InitializeResult) -> Result<()
         let out = output.indent();
 
         // Protocol version
-        out.kv("MCP Protocol Version", &init_result.protocol_version)?;
+        out.kv(
+            "MCP Protocol Version",
+            init_result.protocol_version.to_string(),
+        )?;
         if let Some(title) = &init_result.server_info.title {
             out.kv("Title", title)?;
         }

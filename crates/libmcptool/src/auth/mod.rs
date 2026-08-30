@@ -16,7 +16,8 @@ pub use renew::renew_command;
 
 use crate::{Error, Result};
 
-/// Validates that an auth name contains only alphanumeric characters and underscores
+/// Validates that an auth name contains only alphanumeric characters and
+/// underscores
 pub fn validate_auth_name(name: &str) -> Result<()> {
     if name.is_empty() {
         return Err(Error::Format(

@@ -32,7 +32,8 @@ pub enum McpCommand {
 
     /// Set the logging level on the MCP server
     Setlevel {
-        /// The logging level to set (debug, info, notice, warning, error, critical, alert, emergency)
+        /// The logging level to set (debug, info, notice, warning, error,
+        /// critical, alert, emergency)
         level: String,
     },
 

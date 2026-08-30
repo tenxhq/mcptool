@@ -8,7 +8,7 @@ use tmcp::{
     ClientCtx, ClientHandler, Result as McpResult, Server, ServerCtx, ServerHandler,
     schema::{
         ClientCapabilities, ClientNotification, Implementation, InitializeResult, LoggingLevel,
-        ServerNotification,
+        ProtocolVersion, ServerNotification,
     },
 };
 use tokio::{
@@ -33,7 +33,7 @@ impl ServerHandler for SimpleTestServerConn {
     async fn initialize(
         &self,
         _context: &ServerCtx,
-        _protocol_version: String,
+        _protocol_version: ProtocolVersion,
         _capabilities: ClientCapabilities,
         _client_info: Implementation,
     ) -> McpResult<InitializeResult> {
@@ -95,7 +95,8 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     let port = listener.local_addr()?.port();
     drop(listener); // Release the port so server can bind to it
 
-    // Start simple test server - capabilities come from handler's initialize response
+    // Start simple test server - capabilities come from handler's initialize
+    // response
     let server = Server::new(move || SimpleTestServerConn {
         client_notification_sender: client_notification_sender.clone(),
     });
@@ -136,7 +137,8 @@ async fn test_set_level_command_notifications_via_tcp() -> Result<(), Box<dyn Er
     // Server -> Client notifications
 
     // Test set_level command - this should work and the server should handle it
-    // The client should not hang given that a notification message is sent on each call
+    // The client should not hang given that a notification message is sent on each
+    // call
     client.set_level(LoggingLevel::Debug).await?;
     client.set_level(LoggingLevel::Info).await?;
     client.set_level(LoggingLevel::Warning).await?;

@@ -128,12 +128,13 @@ impl SolarizedDark {
 /// Handles all output formatting for the application.
 ///
 /// This struct provides a unified interface for outputting text to the console,
-/// with support for both human-readable formatted output and machine-readable JSON output.
-/// It uses the Solarized Dark color scheme for styled terminal output and can switch
-/// between colored text mode and JSON mode based on the `json` flag.
+/// with support for both human-readable formatted output and machine-readable
+/// JSON output. It uses the Solarized Dark color scheme for styled terminal
+/// output and can switch between colored text mode and JSON mode based on the
+/// `json` flag.
 ///
-/// The struct is `Clone` and thread-safe, allowing it to be shared across different
-/// parts of the application.
+/// The struct is `Clone` and thread-safe, allowing it to be shared across
+/// different parts of the application.
 #[derive(Clone)]
 pub struct Output {
     /// The standard output stream for writing to the terminal.
@@ -262,7 +263,8 @@ impl Output {
         self.write_block_with_color(message, &ColorSpec::new())
     }
 
-    /// Helper method to write a line with proper indentation, text wrapping, and color.
+    /// Helper method to write a line with proper indentation, text wrapping,
+    /// and color.
     fn write_block_with_color(&self, message: &str, color_spec: &ColorSpec) -> io::Result<()> {
         let mut stdout = self.stdout.lock().unwrap();
         let indent_str = " ".repeat(self.indent);
@@ -314,8 +316,8 @@ impl Output {
 
         let message = message.into();
 
-        // Create left-aligned header with padding to fill the FULL width (including indent)
-        // The header background should span the entire terminal width
+        // Create left-aligned header with padding to fill the FULL width (including
+        // indent) The header background should span the entire terminal width
         let message_with_spaces = format!(" {message} ");
         let indent_str = " ".repeat(self.indent);
         let total_content_length = self.indent + message_with_spaces.len();
@@ -334,7 +336,8 @@ impl Output {
             .set_bold(true)
             .clone();
 
-        // Write directly to stdout with color, bypassing write_block to avoid double indentation
+        // Write directly to stdout with color, bypassing write_block to avoid double
+        // indentation
         let mut stdout = self.stdout.lock().unwrap();
         stdout.set_color(&color_spec)?;
         write!(stdout, "{header}")?;
@@ -549,10 +552,10 @@ impl Default for Output {
 
 /// A tracing subscriber layer that forwards log messages to an Output instance.
 ///
-/// This struct implements the `tracing_subscriber::Layer` trait to integrate with
-/// the tracing ecosystem. It captures log events and forwards them to the Output
-/// struct for consistent formatting. This allows application logs to respect the
-/// same formatting rules (including JSON mode) as regular output.
+/// This struct implements the `tracing_subscriber::Layer` trait to integrate
+/// with the tracing ecosystem. It captures log events and forwards them to the
+/// Output struct for consistent formatting. This allows application logs to
+/// respect the same formatting rules (including JSON mode) as regular output.
 pub struct OutputLayer {
     /// The output instance to forward logs to.
     output: Output,
@@ -582,9 +585,9 @@ where
 
 /// A visitor for extracting message content from tracing events.
 ///
-/// This struct implements the `tracing::field::Visit` trait to extract the message
-/// field from tracing events. It's used internally by `OutputLayer` to get the
-/// actual log message text that needs to be formatted and displayed.
+/// This struct implements the `tracing::field::Visit` trait to extract the
+/// message field from tracing events. It's used internally by `OutputLayer` to
+/// get the actual log message text that needs to be formatted and displayed.
 struct MessageVisitor {
     /// The extracted message text.
     message: String,

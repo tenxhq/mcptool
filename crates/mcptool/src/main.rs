@@ -11,7 +11,7 @@ use libmcptool::{
     testserver,
 };
 use terminal_size::{Width, terminal_size};
-use tmcp::schema::LATEST_PROTOCOL_VERSION;
+use tmcp::schema::SupportedProtocolVersions;
 
 #[derive(Args)]
 struct TargetArgs {
@@ -84,7 +84,8 @@ enum AuthCommands {
         name: String,
     },
 
-    /// Renew the access token for an authentication entry using the refresh token
+    /// Renew the access token for an authentication entry using the refresh
+    /// token
     Renew {
         /// Name of the authentication entry to renew
         name: String,
@@ -203,7 +204,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match cli.command {
         Commands::Version => {
             println!("mcptool version {}", ctx::VERSION);
-            println!("MCP protocol version: {}", LATEST_PROTOCOL_VERSION);
+            println!(
+                "MCP protocol version: {}",
+                SupportedProtocolVersions::default().preferred()
+            );
         }
 
         Commands::Mcp { mcp_command } => {

@@ -41,7 +41,8 @@ pub enum Error {
     #[error("Invalid format: {0}")]
     Format(String),
 
-    /// Errors that should be rare, and are not expected to be handled by the user.
+    /// Errors that should be rare, and are not expected to be handled by the
+    /// user.
     #[error("MCP error: {0}")]
     Internal(String),
 }

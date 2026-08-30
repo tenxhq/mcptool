@@ -1,4 +1,5 @@
-//! Tool argument parsing from different sources (command line, interactive, JSON).
+//! Tool argument parsing from different sources (command line, interactive,
+//! JSON).
 
 /// Command line argument parsing.
 pub mod cmdline;

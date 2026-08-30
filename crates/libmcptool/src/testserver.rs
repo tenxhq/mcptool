@@ -14,10 +14,11 @@ use tmcp::{
     Error, Result, Server, ServerCtx, ServerHandler,
     schema::{
         Annotations, CallToolResponse, CallToolResult, ClientCapabilities, ClientNotification,
-        Cursor, GetPromptResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
-        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
-        LoggingLevel, ProgressToken, Prompt, PromptArgument, PromptMessage, ReadResourceResult,
-        Resource, ResourceTemplate, Role, ServerNotification, TaskMetadata, Tool,
+        Cursor, GetPromptResult, Implementation, InitializeResult, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, LoggingLevel,
+        ProgressToken, Prompt, PromptArgument, PromptMessage, ProtocolVersion, ReadResourceResult,
+        Resource, ResourceTemplate, Role, ServerNotification, SupportedProtocolVersions,
+        TaskMetadata, Tool,
     },
 };
 use tokio::{runtime::Handle, signal::ctrl_c, task};
@@ -61,7 +62,8 @@ struct ClientInfo {
     connected_at: Instant,
 }
 
-/// Shared state for the test server that can be accessed by both connections and the REPL
+/// Shared state for the test server that can be accessed by both connections
+/// and the REPL
 #[derive(Clone)]
 #[allow(clippy::missing_docs_in_private_items)]
 struct TestServerState {
@@ -215,7 +217,7 @@ impl ServerHandler for TestServerConn {
     async fn initialize(
         &self,
         context: &ServerCtx,
-        protocol_version: String,
+        protocol_version: ProtocolVersion,
         capabilities: ClientCapabilities,
         client_info: Implementation,
     ) -> Result<InitializeResult> {
@@ -232,7 +234,8 @@ impl ServerHandler for TestServerConn {
         ));
 
         // Add client to shared state with context info
-        // Note: We don't have direct access to remote_addr from context, so we'll use a placeholder
+        // Note: We don't have direct access to remote_addr from context, so we'll use a
+        // placeholder
         self.state
             .add_client(context, "client_connection", client_info);
 
@@ -1004,8 +1007,8 @@ fn create_test_server(
     let state = TestServerState::new(output, request_counter);
     let state_for_conn = state.clone();
 
-    // Capabilities are returned by TestServerConn::initialize, making the handler the single
-    // source of truth for what the server advertises.
+    // Capabilities are returned by TestServerConn::initialize, making the handler
+    // the single source of truth for what the server advertises.
     let server = Server::new(move || TestServerConn::new(state_for_conn.clone()));
 
     (server, state)
@@ -1084,7 +1087,10 @@ pub async fn run_test_server(
 
     _ = output.h1("mcptool testserver");
     _ = output.text(format!("Version: {}", env!("CARGO_PKG_VERSION")));
-    _ = output.text(format!("Protocol: {}", LATEST_PROTOCOL_VERSION));
+    _ = output.text(format!(
+        "Protocol: {}",
+        SupportedProtocolVersions::default().preferred()
+    ));
 
     // Create shared request counter for interactive mode
     let request_counter = Arc::new(AtomicU64::new(0));

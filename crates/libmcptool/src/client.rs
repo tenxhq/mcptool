@@ -128,7 +128,8 @@ async fn connect_with_auth<C: ClientHandler + Send + 'static>(
     Ok((client, init_result))
 }
 
-/// Persists automatic OAuth refreshes while the connected client owns the OAuth client.
+/// Persists automatic OAuth refreshes while the connected client owns the OAuth
+/// client.
 fn persist_oauth_revisions(
     oauth_client: &Arc<OAuth2Client>,
     storage: TokenStorage,

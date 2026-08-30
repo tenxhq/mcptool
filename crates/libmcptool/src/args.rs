@@ -24,7 +24,8 @@ impl ArgumentParser {
         Ok(Some(Arguments::from(arg_map)))
     }
 
-    /// Parse arguments from key=value format into a string HashMap (for prompts)
+    /// Parse arguments from key=value format into a string HashMap (for
+    /// prompts)
     pub fn parse_string_args(args: Vec<String>) -> Result<Option<HashMap<String, String>>> {
         if args.is_empty() {
             return Ok(None);
